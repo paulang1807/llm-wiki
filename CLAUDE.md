@@ -91,17 +91,25 @@ Append-only. Each entry:
 
 ## Ingest Workflow
 
-When told to "ingest" a source file or folder:
-1. Read the source file(s) in `raw/` (including `inbox/`)
-2. **Autonomic Classification**: Identify the correct category (`infra`, `devops`, etc.) based on content analysis, regardless of source directory.
-3. Discuss key takeaways with user if interactive, otherwise proceed
-3. Identify which existing wiki pages this content touches
-4. Create new wiki page(s) for new topics
-5. Update existing wiki pages to incorporate new information
-6. Note contradictions with a `> ⚠️ Contradiction with [[Other Page]]` callout
-7. Update `wiki/index.md` with any new/changed pages
-8. Append an entry to `wiki/log.md`
-9. A single ingest should typically touch 5–15 wiki pages
+When told to "ingest" a source file or folder (including `raw/inbox/`):
+
+### 1. File Type Handling
+| Format | Handling Method |
+|--------|-----------------|
+| **Markdown (.md)** | Direct read and parsing. |
+| **Plain Text (.txt)** | Direct read, treat as markdown body. |
+| **HTML / DOCX** | Convert via `pandoc -f [fmt] -t markdown`. |
+| **Rich Text (.rtf)** | Convert via `textutil -convert txt [file] -stdout` |
+| **Images (.jpg/png/etc)** | Move to `raw/assets/`, rename descriptively, and embed in relevant wiki pages using `![[filename]]`. |
+
+### 2. Autonomic Processing
+1. **Classification**: Identify the correct category (`infra`, `devops`, etc.) based on content analysis.
+2. **Takeaways**: Identify key technical patterns and facts.
+3. **Wiki Update**: Create or update relevant pages.
+4. **Clean up (Optional)**: Move ingested raw files to a sub-archive or mark them as processed.
+
+### 3. Log & Index
+1. Update `wiki/index.md` and `wiki/log.md`.
 
 ## Query Workflow
 

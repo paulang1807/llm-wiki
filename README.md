@@ -41,7 +41,7 @@ The wiki comes with a premium, interactive Web UI.
 
 ### 2. The "Dumping Ground" Workflow
 You don't need to organize your raw notes. 
-1. Drop any markdown, HTML, or DOCX file into **`raw/inbox/`**.
+1. Drop any note (**Markdown, Text, RTF, HTML, DOCX**) or **Image** into **`raw/inbox/`**.
 2. Tell your LLM agent: `Ingest inbox`
 3. The agent will autonomously classify the topic and organize it into the correct `wiki/` subdirectory.
 
