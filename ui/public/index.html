@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Wiki</title>
+  <meta name="description" content="Personal knowledge base for software engineering, data science, ML, and AI">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
+  <header class="header" id="header">
+    <div class="header-left">
+      <button class="sidebar-toggle" id="sidebarToggle" title="Toggle sidebar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div class="logo">
+        <span class="logo-icon">🧠</span>
+        <span class="logo-text">LLM Wiki</span>
+      </div>
+    </div>
+
+    <div class="search-wrapper">
+      <div class="search-box" id="searchBox">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="searchInput" placeholder="Search wiki… (Press /)" autocomplete="off" spellcheck="false">
+        <kbd class="search-kbd" id="searchKbd">/</kbd>
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    </div>
+
+    <div class="header-right">
+      <button class="view-btn active" id="btnRead" title="Read view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+      </button>
+      <button class="view-btn" id="btnGraph" title="Graph view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+      </button>
+      <div class="stats-pill" id="statsPill"><span id="statsText">— pages</span></div>
+    </div>
+  </header>
+
+  <!-- ── Main Layout ────────────────────────────────────────────── -->
+  <div class="layout" id="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">WIKI PAGES</div>
+        <nav id="wikiNav" class="nav-tree"></nav>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="main" id="main">
+
+      <!-- Welcome screen -->
+      <div class="welcome" id="welcome">
+        <div class="welcome-inner">
+          <div class="welcome-hero">🧠</div>
+          <h1 class="welcome-title">LLM Wiki</h1>
+          <p class="welcome-subtitle">Your personal knowledge base for software engineering, data science, machine learning, and generative AI.</p>
+          <div class="welcome-grid" id="welcomeGrid">
+            <!-- Populated by JS -->
+          </div>
+          <p class="welcome-hint">Select a page from the sidebar, or press <kbd>/</kbd> to search</p>
+        </div>
+      </div>
+
+      <!-- Page content -->
+      <div class="page-view" id="pageView" style="display:none">
+        <div class="page-header" id="pageHeader">
+          <div class="breadcrumb" id="breadcrumb"></div>
+          <h1 class="page-title" id="pageTitle"></h1>
+          <div class="page-meta-row">
+            <div class="tag-list" id="tagList"></div>
+            <div class="confidence-badge" id="confidenceBadge"></div>
+          </div>
+        </div>
+        <div class="markdown-body" id="markdownBody"></div>
+      </div>
+
+      <!-- Graph view -->
+      <div class="graph-view" id="graphView" style="display:none">
+        <canvas id="graphCanvas"></canvas>
+        <div class="graph-legend" id="graphLegend"></div>
+        <div class="graph-tooltip" id="graphTooltip"></div>
+      </div>
+
+    </main>
+
+    <!-- Right info panel -->
+    <aside class="info-panel" id="infoPanel">
+      <div class="info-section" id="relatedSection" style="display:none">
+        <div class="info-label">RELATED PAGES</div>
+        <div id="relatedList"></div>
+      </div>
+      <div class="info-section" id="sourcesSection" style="display:none">
+        <div class="info-label">RAW SOURCES</div>
+        <div id="sourcesList"></div>
+      </div>
+      <div class="info-section" id="metaSection" style="display:none">
+        <div class="info-label">PAGE INFO</div>
+        <div id="metaList"></div>
+      </div>
+      <div class="info-section info-welcome" id="infoWelcome">
+        <div class="info-label">QUICK START</div>
+        <div class="info-tip">
+          <span class="tip-icon">📖</span>
+          <div>Click any page in the sidebar to start reading</div>
+        </div>
+        <div class="info-tip">
+          <span class="tip-icon">🔍</span>
+          <div>Press <kbd>/</kbd> to search across all pages</div>
+        </div>
+        <div class="info-tip">
+          <span class="tip-icon">🔗</span>
+          <div>Click <span class="wikilink-sample">[[wikilinks]]</span> to navigate between pages</div>
+        </div>
+        <div class="info-tip">
+          <span class="tip-icon">🕸️</span>
+          <div>Use the graph view to explore connections</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
