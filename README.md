@@ -1,44 +1,57 @@
 # LLM Wiki — Personal Knowledge Base
 
-A self-maintaining personal knowledge base covering **software engineering, information technology, data science, machine learning, and generative AI**.
+A self-maintaining personal knowledge base covering **software engineering, cloud infrastructure, data science, machine learning, and AI**.
 
 Powered by Karpathy's LLM Wiki pattern — the LLM writes and maintains all wiki content; you curate sources and ask questions.
 
-## Structure
+![LLM Wiki Web UI Demo](file:///Users/pauls/.gemini/antigravity/brain/6d3ff521-5855-4b1c-93fa-d9d1d8d95f11/wiki_ui_overview_1776635880823.webp)
+
+## 🏗️ Structure
 
 ```
 llm-wiki/
-├── raw/                    # Immutable source documents (LLM reads only)
-│   ├── python/             # From learn-python repo
-│   ├── ml/                 # From learn-ml repo
-│   ├── genai/              # From learn-genai repo
-│   └── onenote/            # OneNote exports (coming soon)
-├── wiki/                   # LLM-maintained knowledge pages
-│   ├── python/             # Python programming pages
-│   ├── ml/                 # Machine learning pages
-│   ├── genai/              # GenAI & NLP pages
-│   ├── concepts/           # Cross-cutting concepts
+├── raw/                    # IMMUTABLE source documents (LLM reads only)
+│   ├── inbox/              # ← DUMPING GROUND — drop all new notes here
+│   ├── python/             # Python programming docs
+│   ├── ml/                 # Machine learning docs
+│   ├── genai/              # Generative AI & NLP docs
+│   └── onenote/            # OneNote exports
+├── wiki/                   # LLM-MAINTAINED knowledge pages
+│   ├── python/             # Python programming
+│   ├── ml/                 # Machine learning
+│   ├── genai/              # Generative AI & NLP
+│   ├── infra/              # AWS, Cloud, Networking
+│   ├── devops/             # Docker, CI/CD, Containers
+│   ├── data/               # Spark, Big Data, Databases
+│   ├── web/                # Web Development
+│   ├── os/                 # Unix/Linux & Shell
 │   ├── index.md            # ← START HERE — master catalog
 │   ├── overview.md         # High-level synthesis
 │   └── log.md              # Activity history
+├── ui/                     # Web UI Application
 └── CLAUDE.md               # Schema & workflow rules for LLM
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-### Browse the Wiki
-Open this folder as an **Obsidian vault** — follow `[[wiki links]]` to navigate, use Graph View to see connections.
+### 1. View the Wiki (Web UI)
+The wiki comes with a premium, interactive Web UI.
+- **Access**: [http://localhost:3737](http://localhost:3737)
+- **Features**: Hierarchical navigation, **Global Search** (press `/`), and an **Interactive Knowledge Graph**.
 
-### Ask a Question
-Start a session with your LLM agent (Claude Code, Cursor, etc.) and say:
+### 2. The "Dumping Ground" Workflow
+You don't need to organize your raw notes. 
+1. Drop any markdown, HTML, or DOCX file into **`raw/inbox/`**.
+2. Tell your LLM agent: `Ingest inbox`
+3. The agent will autonomously classify the topic and organize it into the correct `wiki/` subdirectory.
+
+### 3. Ask a Question
+Start a session with your LLM agent (Claude Code, etc.) and say:
 ```
 Read CLAUDE.md and wiki/index.md, then answer: [your question]
 ```
 
-### Add a New Source
-1. Drop a markdown/PDF/HTML file into the appropriate `raw/` subfolder
-2. Tell your LLM agent: `Ingest raw/[path/to/file]`
-3. The agent will create/update wiki pages and update `wiki/index.md` and `wiki/log.md`
+## 🛠️ Maintenance
 
 ### Health-Check the Wiki
 ```
@@ -46,47 +59,21 @@ Read CLAUDE.md, then lint the wiki
 ```
 The agent will find contradictions, orphan pages, and stale content.
 
-## Source Repositories
+### Adding OneNote Notes
+1. In OneNote: **File → Export → Export as Word (.docx) or HTML**.
+2. Convert to markdown: `pandoc -f docx -t markdown -o raw/onenote/notes.md notes.docx`.
+3. Tell the LLM agent: `Ingest raw/onenote/notes.md`.
 
-| Source | Raw Path | What's In It |
-|--------|----------|-------------|
-| [learn-python](https://github.com/paulang1807/learn-python) | `raw/python/` | Python basics, OOP, regex, web scraping, databases, testing, Jupyter |
-| [learn-ml](https://github.com/paulang1807/learn-ml) | `raw/ml/` | ML algorithms, statistics, time series, deep learning |
-| [learn-genai](https://github.com/paulang1807/learn-genai) | `raw/genai/` | NLP, LLMs, prompting, RAG, agents, local inference |
+## 🧠 Wiki Schema Highlights
+- **Autonomic Ingestion**: The AI determines categorization based on content analysis, not source path.
+- **Confidence Scoring**: Pages are rated 0.0–1.0 based on sourcing quality.
+- **Cross-links**: Uses standard Obsidian `[[Page Title]]` syntax for graph connectivity.
+- **Immutability**: `raw/` files are never modified by the AI; `wiki/` files are never edited by humans.
 
-## Adding OneNote Notes
-
-1. In OneNote: **File → Export → Export as Word (.docx) or HTML**
-2. Convert to markdown:
-   ```bash
-   # Install pandoc: https://pandoc.org/installing.html
-   pandoc -f docx -t markdown -o raw/onenote/my-notes.md my-notes.docx
-   # or from HTML:
-   pandoc -f html -t markdown -o raw/onenote/my-notes.md my-notes.html
-   ```
-3. Clean up the markdown if needed (remove excess formatting)
-4. Tell the LLM agent: `Ingest raw/onenote/my-notes.md`
-
-## Key Wiki Pages
-
-| Page | Description |
-|------|-------------|
-| `wiki/index.md` | Master catalog — start every session here |
-| `wiki/overview.md` | Big-picture synthesis and gap analysis |
-| `wiki/log.md` | Activity history |
-| `CLAUDE.md` | Schema: conventions, workflow, frontmatter spec |
-
-## Wiki Schema Highlights
-
-- **Frontmatter**: Every page has `title`, `category`, `tags`, `sources`, `confidence`, `last_updated`, `stale`, `related`
-- **Cross-links**: Obsidian `[[Page Name]]` syntax — works in graph view
-- **Confidence scoring**: 0.0–1.0 based on source quality. Pages below 0.7 flagged during lint
-- **Ingest rule**: One new source typically touches 5–15 wiki pages
-- **Immutability**: Never edit `raw/` files — update source repos instead
-
-## Conventions
-
-- Raw files: **read only** — never modified by LLM
-- Wiki files: **LLM-owned** — never manually edited (update raw sources instead)
-- Corrections: update the raw source or add a note to `CLAUDE.md`
-- If unsure whether to create a new page or update an existing one: update existing unless content is truly distinct enough to warrant its own page
+## 📁 Knowledge Domains
+- **Infrastructure**: AWS Services, Cloud-native patterns.
+- **DevOps**: Docker, Containerization, Orchestration.
+- **Data**: Spark, Big Data, Database systems.
+- **Web**: Frontend, Backend, API Design.
+- **OS**: Unix/Linux mastery, Shell scripting.
+- **Python, ML, GenAI**: Deep language and AI foundations.
