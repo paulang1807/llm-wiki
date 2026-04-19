@@ -4,7 +4,7 @@ A self-maintaining personal knowledge base covering **software engineering, clou
 
 Powered by Karpathy's LLM Wiki pattern — the LLM writes and maintains all wiki content; you curate sources and ask questions.
 
-![LLM Wiki Web UI Demo](file:///Users/pauls/.gemini/antigravity/brain/6d3ff521-5855-4b1c-93fa-d9d1d8d95f11/wiki_ui_overview_1776635880823.webp)
+![LLM Wiki Web UI Demo](./assets/wiki_ui_overview.webp)
 
 ## 🏗️ Structure
 
