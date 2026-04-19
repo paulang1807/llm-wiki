@@ -63,3 +63,12 @@ Filter with: `grep "^## \[" log.md | tail -10`
   - `wiki/infra/aws-s3.md` (autonomously classified from inbox)
   - `wiki/devops/docker-basics.md` (autonomously classified from inbox)
 - **Notes:** Self-organizing workflow verified.
+
+## [2026-04-19] ingest | Open Source Models (Hugging Face)
+
+- **Sources ingested:**
+  - `raw/inbox/open-src.md` (autonomously classified and moved to `raw/genai/`)
+- **Wiki pages updated:**
+  - `wiki/genai/open-source-models.md` (populated detailed HF patterns)
+  - `wiki/genai/llm-concepts.md` (linked quantization concepts to code)
+- **Notes:** First execution of the "Autonomic Ingestion" workflow via the inbox.

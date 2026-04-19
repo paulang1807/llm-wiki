@@ -65,11 +65,11 @@ Core concepts for understanding, configuring, and working with Large Language Mo
 | Data analysis scripts | 0.2 | 0.1 |
 | Exploratory code | 0.6 | 0.7 |
 
-## Quantization
-
 Process of reducing weight precision to lower memory/compute requirements without significant accuracy loss. Key for running LLMs on edge/consumer devices.
 
-**NF4 Quantization** — uses only 4 bits (vs. standard 16 bits) per weight using a "high-intelligence" rounding scheme.
+**NF4 Quantization** — uses only 4 bits (vs. standard 16 bits) per weight using a "high-intelligence" rounding scheme. 
+
+> 💡 See [[Open Source Models]] for a concrete code implementation using `bitsandbytes` and `NF4`.
 
 Benefits:
 - Reduced VRAM footprint

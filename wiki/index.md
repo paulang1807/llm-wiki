@@ -53,7 +53,7 @@ Query tip: read this file first, then open only the relevant pages.
 | [[Prompting]] | Completion vs. chat prompts; tactics 1–6; few-shot, CoT; caching (OpenAI/Anthropic/Gemini) | prompting, few-shot, caching | 2026-04-19 |
 | [[AI Agents]] | LLMs + tools; function calling; agentic loop (finish_reason); tool spec JSON schema | agents, function-calling, tools | 2026-04-19 |
 | [[Local LLM]] | Ollama, LlamaFile setup; LangChain + LlamaIndex local RAG; splitters | local-llm, ollama, langchain | 2026-04-19 |
-| [[Open Source Models]] | Model landscape: Llama, Mistral, Gemma, Qwen; HuggingFace | open-source, models, huggingface | 2026-04-19 |
+| [[Open Source Models]] | Hugging Face ecosystem: Pipelines (NLP/Diffusion), Tokenizers, and Quantization (NF4) | open-source, llama, huggingface | 2026-04-19 |
 | [[GenAI Frameworks]] | LangChain, LlamaIndex, Haystack, CrewAI comparison | frameworks, langchain | 2026-04-19 |
 | [[GenAI UI]] | Gradio, Streamlit for building GenAI web apps | ui, gradio, streamlit | 2026-04-19 |
 
