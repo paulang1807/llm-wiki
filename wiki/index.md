@@ -19,7 +19,6 @@ Query tip: read this file first, then open only the relevant pages.
 | [[Python OOP]] | Classes, inheritance, encapsulation, polymorphism | python, oop | 2026-04-19 |
 | [[Python Regex]] | Pattern matching with the `re` module | python, regex | 2026-04-19 |
 | [[Python Web Scraping]] | requests, BeautifulSoup, Selenium | python, web-scraping | 2026-04-19 |
-| [[Python Databases]] | SQLite with Python; SQLAlchemy patterns | python, databases, sql | 2026-04-19 |
 | [[Python File IO]] | File reading/writing, CSV, JSON, pathlib | python, file-io | 2026-04-19 |
 | [[Python Testing]] | unittest, doctest, pylint; test patterns | python, testing | 2026-04-19 |
 | [[Python Email]] | smtplib, email module, automated email sending | python, email | 2026-04-19 |
@@ -60,7 +59,42 @@ Query tip: read this file first, then open only the relevant pages.
 
 ---
 
-## 📊 Concepts (Cross-Cutting)
+## ☁️ Infrastructure & DevOps
+
+| Page | Summary | Tags | Updated |
+|------|---------|------|---------|
+| [[AWS S3]] | Scalable object storage in the cloud | aws, infra, storage | 2026-04-19 |
+| [[Docker Basics]] | Fundamentals of containerization; images vs containers | docker, devops | 2026-04-19 |
+| *(Empty)* | *Dump notes into `raw/inbox/` to populate* | | 2026-04-19 |
+
+---
+
+## 📊 Data & Databases
+
+| Page | Summary | Tags | Updated |
+|------|---------|------|---------|
+| [[Databases]] | SQL, NoSQL, and database integration patterns | data, sql, python | 2026-04-19 |
+| *(Empty)* | *Dump Spark/Big Data notes into `raw/inbox/`* | | 2026-04-19 |
+
+---
+
+## 💻 Web Development
+
+| Page | Summary | Tags | Updated |
+|------|---------|------|---------|
+| *(Empty)* | *Dump Web Dev notes into `raw/inbox/`* | | 2026-04-19 |
+
+---
+
+## 🐧 OS & Computing
+
+| Page | Summary | Tags | Updated |
+|------|---------|------|---------|
+| *(Empty)* | *Dump Unix/Linux/CLI notes into `raw/inbox/`* | | 2026-04-19 |
+
+---
+
+## 📐 Concepts (Cross-Cutting)
 
 | Page | Summary | Tags | Updated |
 |------|---------|------|---------|
@@ -76,16 +110,3 @@ Query tip: read this file first, then open only the relevant pages.
 |------|---------|
 | [[Wiki Overview]] | High-level synthesis, strengths, gaps, cross-domain connections |
 | [[Wiki Log]] | Append-only activity log of all ingests, queries, and lint passes |
-
----
-
-## Raw Source Inventory
-
-| Source | Files | Domain |
-|--------|-------|--------|
-| `raw/python/` | 16 files | Python programming |
-| `raw/ml/` | 32 files | Machine learning & statistics |
-| `raw/genai/` | 14 files | Generative AI, NLP, LLMs |
-| `raw/onenote/` | *(pending)* | Personal notes from Microsoft OneNote |
-
-**Total sources:** 62 files | **Total wiki pages:** ~30

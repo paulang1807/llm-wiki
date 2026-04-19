@@ -51,3 +51,15 @@ Filter with: `grep "^## \[" log.md | tail -10`
   - `wiki/genai/genai-frameworks.md`
   - `wiki/genai/genai-ui.md`
 - **Notes:** Initial ingest. 59 source files processed. index.md and overview.md created.
+
+## [2026-04-19] Expansion | Topic-Aware Autonomic Ingestion
+
+- **Changes:**
+  - Expanded scope to include: `infra`, `devops`, `data`, `web`, `os`.
+  - Established `raw/inbox/` as autonomic dumping ground.
+  - Updated `CLAUDE.md` with classification rules.
+- **Wiki pages created/migrated:**
+  - `wiki/data/databases.md` (migrated from `python/`)
+  - `wiki/infra/aws-s3.md` (autonomously classified from inbox)
+  - `wiki/devops/docker-basics.md` (autonomously classified from inbox)
+- **Notes:** Self-organizing workflow verified.

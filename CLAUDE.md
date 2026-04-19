@@ -3,22 +3,28 @@
 This file tells the LLM agent how to maintain the wiki. Read it at the start of every session.
 
 ## Domain
-Software engineering, information technology, data science, machine learning, and AI/GenAI. The wiki covers both conceptual knowledge and practical code patterns.
+Software engineering, information technology, cloud infrastructure (AWS), DevOps (Docker), data science, machine learning, big data (Spark), web development, Unix/Linux OS, and AI/GenAI.
 
 ## Directory Structure
 
 ```
 llm-wiki/
 ├── raw/                    # IMMUTABLE source documents — LLM reads only, never modifies
-│   ├── python/             # Python programming docs (from learn-python)
-│   ├── ml/                 # Machine learning docs (from learn-ml)
-│   ├── genai/              # Generative AI & NLP docs (from learn-genai)
+│   ├── python/             # Python programming docs
+│   ├── ml/                 # Machine learning docs
+│   ├── genai/              # GenAI & NLP docs
+│   ├── inbox/              # DUMPING GROUND — drop all new notes here for organization
 │   └── assets/             # Images and binary attachments
 ├── wiki/                   # LLM-OWNED — all files here created and maintained by LLM
-│   ├── python/             # Python concept and topic pages
-│   ├── ml/                 # Machine learning topic pages
-│   ├── genai/              # GenAI and NLP topic pages
-│   ├── concepts/           # Cross-cutting concept pages (stats, math, data structures)
+│   ├── python/             # Python programming
+│   ├── ml/                 # Machine learning
+│   ├── genai/              # GenAI & NLP
+│   ├── infra/              # AWS, Cloud, Networking
+│   ├── devops/             # Docker, CI/CD, Containerization
+│   ├── data/               # Spark, Big Data, Databases
+│   ├── web/                # Web Dev (Frontend, Backend, APIs)
+│   ├── os/                 # Unix, Linux, CLI, Shell
+│   ├── concepts/           # Cross-cutting concepts (stats, math, DS)
 │   ├── index.md            # Master catalog of all wiki pages (update on every ingest)
 │   ├── log.md              # Append-only activity log (update on every operation)
 │   └── overview.md         # High-level synthesis of the entire knowledge base
@@ -39,7 +45,7 @@ Every wiki page MUST have YAML frontmatter:
 ```yaml
 ---
 title: "Page Title"
-category: python | ml | genai | concepts
+category: python | ml | genai | infra | devops | data | web | os | concepts
 tags: [tag1, tag2, tag3]
 sources: [raw/python/index.md, raw/python/oop.md]
 confidence: 0.9          # 0.0–1.0, based on source quality and coverage
@@ -51,8 +57,9 @@ related: [[Other Page]], [[Another Page]]
 
 ## Page Types
 
-### Topic Pages (`wiki/python/`, `wiki/ml/`, `wiki/genai/`)
-One page per major topic or concept. Structure:
+### Topic Pages (`wiki/[category]/`)
+One page per major topic or concept. Supported categories: `python`, `ml`, `genai`, `infra`, `devops`, `data`, `web`, `os`.
+Structure:
 1. **Overview** — 1-3 sentence summary of what this is and why it matters
 2. **Key Concepts** — bullet list of sub-concepts with brief explanations
 3. **Code Patterns** — practical code examples extracted from source docs
@@ -85,8 +92,9 @@ Append-only. Each entry:
 ## Ingest Workflow
 
 When told to "ingest" a source file or folder:
-1. Read the source file(s) in `raw/`
-2. Discuss key takeaways with user if interactive, otherwise proceed
+1. Read the source file(s) in `raw/` (including `inbox/`)
+2. **Autonomic Classification**: Identify the correct category (`infra`, `devops`, etc.) based on content analysis, regardless of source directory.
+3. Discuss key takeaways with user if interactive, otherwise proceed
 3. Identify which existing wiki pages this content touches
 4. Create new wiki page(s) for new topics
 5. Update existing wiki pages to incorporate new information
@@ -118,7 +126,7 @@ When told to "lint" the wiki:
 ## Naming Conventions
 
 - Wiki page filenames: lowercase kebab-case (`python-decorators.md`, `ml-regression.md`)
-- Category prefixes: `python-`, `ml-`, `genai-`, no prefix for `concepts/`
+- Category prefixes (optional): `python-`, `ml-`, `genai-`, `aws-`, `docker-`, etc.
 - Tags: lowercase, hyphenated, specific (`time-series`, `deep-learning`, `rag`)
 - Cross-links: always use `[[Page Title]]` Obsidian-style wikilinks
 
