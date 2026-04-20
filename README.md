@@ -39,6 +39,12 @@ The wiki comes with a premium, interactive Web UI.
 - **Access**: [http://localhost:3737](http://localhost:3737)
 - **Features**: Hierarchical navigation, **Global Search** (press `/`), and an **Interactive Knowledge Graph**.
 
+### 🧠 AI Assistant (RAG)
+The Web UI includes a built-in AI assistant for natural language Q&A.
+- **Provider**: Defaults to Gemini (2.5 Flash).
+- **Setup**: Create a `.env` file in the root with `GOOGLE_API_KEY=your_key`.
+- **Privacy**: Automatically falls back to **Ollama** if no API key is found.
+
 ### 2. The "Dumping Ground" Workflow
 You don't need to organize your raw notes. 
 1. Drop any note (**Markdown, Text, RTF, HTML, DOCX**) or **Image** into **`raw/inbox/`**.

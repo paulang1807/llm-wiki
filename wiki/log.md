@@ -72,3 +72,13 @@ Filter with: `grep "^## \[" log.md | tail -10`
   - `wiki/genai/open-source-models.md` (populated detailed HF patterns)
   - `wiki/genai/llm-concepts.md` (linked quantization concepts to code)
 - **Notes:** First execution of the "Autonomic Ingestion" workflow via the inbox.
+
+## [2026-04-19] ingest | GenAI Frameworks & Probability
+
+- **Sources ingested:**
+  - `raw/inbox/frameworks.md` (autonomously moved to `raw/genai/`)
+  - `raw/inbox/probability.md` (autonomously moved to `raw/ml/`)
+- **Wiki pages updated:**
+  - `wiki/genai/genai-frameworks.md` (populated detailed framework patterns)
+  - `wiki/concepts/probability.md` (populated Bayesian and distribution concepts)
+- **Notes:** Continued autonomic organization. Cross-linked probability to statistics.

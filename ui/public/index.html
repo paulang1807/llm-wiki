@@ -50,6 +50,12 @@
         </svg>
       </button>
       <div class="stats-pill" id="statsPill"><span id="statsText">— pages</span></div>
+      <button class="view-btn ai-btn" id="btnAI" title="Ask AI Assistant">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6a1 1 0 0 0-1 1v2a1 1 0 0 0 2 0V7a1 1 0 0 0-1-1zm0 10a1 1 0 1 0 1 1 1 1 0 0 0-1-1zm-3-3a1 1 0 1 0 1 1 1 1 0 0 0-1-1zm6 0a1 1 0 1 0 1 1 1 1 0 0 0-1-1z"/>
+        </svg>
+        <span class="ai-btn-text">Ask AI</span>
+      </button>
     </div>
   </header>
 
@@ -136,6 +142,67 @@
         </div>
       </div>
     </aside>
+    
+    <!-- AI Chat Drawer -->
+    <div class="chat-drawer" id="chatDrawer">
+      <div class="chat-header">
+        <div class="chat-header-title">
+          <span class="chat-icon">🧠</span>
+          Wiki AI Assistant
+        </div>
+        <button class="chat-close" id="chatClose">×</button>
+      </div>
+      
+      <div class="chat-provider-bar" id="chatProviderBar">
+        <div class="provider-status" id="providerStatus">Checking AI...</div>
+        <button class="provider-settings-btn" id="btnProviderSettings">⚙️</button>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-welcome">
+          <div class="welcome-ai-icon">🧠</div>
+          <h3>How can I help you?</h3>
+          <p>I can answer questions based on your wiki content, explain concepts, and find code examples.</p>
+          <div class="chat-suggestions">
+            <button onclick="quickAsk('What is machine learning?')">What is machine learning?</button>
+            <button onclick="quickAsk('How do I use HuggingFace pipelines?')">How do I use HuggingFace pipelines?</button>
+            <button onclick="quickAsk('Tell me about Bayes\' Theorem')">Tell me about Bayes' Theorem</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-setup-wizard" id="chatSetup" style="display:none">
+        <h4>AI Provider Setup</h4>
+        <p>No Gemini key found in <code>.env</code>. Choose a different provider:</p>
+        <div class="setup-form">
+          <label>Provider</label>
+          <select id="selectProvider">
+            <option value="ollama">Ollama (Local / Free)</option>
+            <option value="gemini">Gemini (API Key Required)</option>
+          </select>
+          <div id="geminiSetup" style="display:none">
+            <label>API Key</label>
+            <input type="password" id="geminiKey" placeholder="Paste your GOOGLE_API_KEY here">
+          </div>
+          <div id="ollamaSetup">
+            <label>Model</label>
+            <input type="text" id="ollamaModel" value="llama3.1" placeholder="e.g. llama3.1, mistral">
+          </div>
+          <button class="setup-save-btn" id="btnSaveSetup">Save & Start Chat</button>
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="chat-input-wrapper">
+          <textarea id="chatInput" placeholder="Ask anything about your wiki..." rows="1"></textarea>
+          <button class="chat-send" id="btnChatSend">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
 
   </div>
 

@@ -54,7 +54,7 @@ Query tip: read this file first, then open only the relevant pages.
 | [[AI Agents]] | LLMs + tools; function calling; agentic loop (finish_reason); tool spec JSON schema | agents, function-calling, tools | 2026-04-19 |
 | [[Local LLM]] | Ollama, LlamaFile setup; LangChain + LlamaIndex local RAG; splitters | local-llm, ollama, langchain | 2026-04-19 |
 | [[Open Source Models]] | Hugging Face ecosystem: Pipelines (NLP/Diffusion), Tokenizers, and Quantization (NF4) | open-source, llama, huggingface | 2026-04-19 |
-| [[GenAI Frameworks]] | LangChain, LlamaIndex, Haystack, CrewAI comparison | frameworks, langchain | 2026-04-19 |
+| [[GenAI Frameworks]] | Routers (OpenRouter) and Abstraction Layers (LangChain, LiteLLM) | frameworks, langchain | 2026-04-19 |
 | [[GenAI UI]] | Gradio, Streamlit for building GenAI web apps | ui, gradio, streamlit | 2026-04-19 |
 
 ---
@@ -100,7 +100,7 @@ Query tip: read this file first, then open only the relevant pages.
 |------|---------|------|---------|
 | [[Statistics Basics]] | Descriptive stats, distributions, EDA, hypothesis testing, correlation, sampling | statistics, eda, distributions | 2026-04-19 |
 | [[Statistics for ML]] | Stats concepts applied in ML: bias-variance, Type I/II errors, p-values, effect size | statistics, ml | 2026-04-19 |
-| [[Probability]] | Probability theory, Bayes theorem, random variables, distributions | probability, bayes | 2026-04-19 |
+| [[Probability]] | Fundamentals, Bayes' Theorem, Bayes Factor, Beta Distribution | probability, bayes | 2026-04-19 |
 
 ---
 

@@ -8,7 +8,13 @@ const state = {
   currentPage: null,
   view: 'read', // 'read' or 'graph'
   graph: { nodes: [], edges: [] },
-  history: []
+  history: [],
+  ai: {
+    isOpen: false,
+    provider: 'gemini',
+    geminiReady: false,
+    messages: []
+  }
 };
 
 // ── DOM Elements ──────────────────────────────────────────────
@@ -38,7 +44,22 @@ const elements = {
   metaSection: document.getElementById('metaSection'),
   metaList: document.getElementById('metaList'),
   infoWelcome: document.getElementById('infoWelcome'),
-  statsText: document.getElementById('statsText')
+  statsText: document.getElementById('statsText'),
+  
+  // Chat Elements
+  btnAI: document.getElementById('btnAI'),
+  chatDrawer: document.getElementById('chatDrawer'),
+  chatClose: document.getElementById('chatClose'),
+  chatMessages: document.getElementById('chatMessages'),
+  chatInput: document.getElementById('chatInput'),
+  btnChatSend: document.getElementById('btnChatSend'),
+  btnProviderSettings: document.getElementById('btnProviderSettings'),
+  providerStatus: document.getElementById('providerStatus'),
+  chatSetup: document.getElementById('chatSetup'),
+  btnSaveSetup: document.getElementById('btnSaveSetup'),
+  selectProvider: document.getElementById('selectProvider'),
+  geminiSetup: document.getElementById('geminiSetup'),
+  ollamaSetup: document.getElementById('ollamaSetup')
 };
 
 // ── Initialization ───────────────────────────────────────────
@@ -52,6 +73,7 @@ async function init() {
 
   setupEventListeners();
   renderWelcomeGrid();
+  checkAIStatus();
 
   // Load page from URL hash if present
   const hash = window.location.hash.slice(1);
@@ -378,8 +400,25 @@ function setupEventListeners() {
     elements.sidebar.style.display = elements.sidebar.style.display === 'none' ? 'block' : 'none';
   });
 
-  elements.btnRead.addEventListener('click', () => setView('read'));
   elements.btnGraph.addEventListener('click', () => setView('graph'));
+  
+  // AI Chat
+  elements.btnAI.addEventListener('click', toggleChat);
+  elements.chatClose.addEventListener('click', toggleChat);
+  elements.btnChatSend.addEventListener('click', askAI);
+  elements.btnProviderSettings.addEventListener('click', showSetup);
+  elements.btnSaveSetup.addEventListener('click', saveSetup);
+  elements.selectProvider.addEventListener('change', (e) => {
+    elements.geminiSetup.style.display = e.target.value === 'gemini' ? 'block' : 'none';
+    elements.ollamaSetup.style.display = e.target.value === 'ollama' ? 'block' : 'none';
+  });
+
+  elements.chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      askAI();
+    }
+  });
 
   // Search
   elements.searchInput.addEventListener('input', debounce(async (e) => {
@@ -472,6 +511,112 @@ function debounce(func, wait) {
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
 }
+
+// ── AI Assistant Logic ───────────────────────────────────────
+
+async function checkAIStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    state.ai.geminiReady = data.geminiReady;
+    state.ai.provider = data.defaultProvider;
+    updateProviderStatus();
+  } catch (err) {
+    console.error('Failed to check AI status:', err);
+  }
+}
+
+function updateProviderStatus() {
+  const p = state.ai.provider;
+  const ready = p === 'gemini' ? state.ai.geminiReady : true;
+  elements.providerStatus.innerHTML = `
+    <span style="color: ${ready ? '#3fb950' : '#f85149'}">●</span> 
+    Using ${p.charAt(0).toUpperCase() + p.slice(1)} ${!ready ? '(Unconfigured)' : ''}
+  `;
+}
+
+function toggleChat() {
+  state.ai.isOpen = !state.ai.isOpen;
+  elements.chatDrawer.classList.toggle('open', state.ai.isOpen);
+  if (state.ai.isOpen) {
+    if (!state.ai.geminiReady && state.ai.provider === 'gemini') {
+      showSetup();
+    }
+    setTimeout(() => elements.chatInput.focus(), 400);
+  }
+}
+
+function showSetup() {
+  elements.chatMessages.style.display = 'none';
+  elements.chatSetup.style.display = 'block';
+}
+
+function saveSetup() {
+  state.ai.provider = elements.selectProvider.value;
+  // Local only update for now (won't persist to .env but works for sess)
+  updateProviderStatus();
+  elements.chatSetup.style.display = 'none';
+  elements.chatMessages.style.display = 'flex';
+}
+
+async function askAI() {
+  const text = elements.chatInput.value.trim();
+  if (!text) return;
+
+  // Add user message
+  addMessage('user', text);
+  elements.chatInput.value = '';
+  elements.btnChatSend.disabled = true;
+
+  // Add typing indicator
+  const typingId = 'typing-' + Date.now();
+  addMessage('ai', 'Thinking...', typingId);
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: text,
+        provider: state.ai.provider,
+        model: state.ai.provider === 'ollama' ? document.getElementById('ollamaModel').value : null
+      })
+    });
+    
+    const data = await res.json();
+    const typingEl = document.getElementById(typingId);
+    
+    if (data.error) {
+      typingEl.innerHTML = `<span style="color:#f85149">Error: ${data.error}</span>`;
+    } else {
+      typingEl.innerHTML = `<div class="markdown-body">${marked.parse(data.answer)}</div>`;
+      if (data.sources && data.sources.length > 0) {
+        const sourcesHtml = `<div class="msg-sources">Sources: ${data.sources.join(', ')}</div>`;
+        typingEl.innerHTML += sourcesHtml;
+      }
+    }
+  } catch (err) {
+    document.getElementById(typingId).textContent = 'Error: Failed to connect to server.';
+  } finally {
+    elements.btnChatSend.disabled = false;
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+  }
+}
+
+function addMessage(role, text, id = null) {
+  const msg = document.createElement('div');
+  msg.className = `message ${role}`;
+  if (id) msg.id = id;
+  msg.textContent = text;
+  elements.chatMessages.appendChild(msg);
+  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+}
+
+window.quickAsk = function(q) {
+  if (!state.ai.isOpen) toggleChat();
+  elements.chatInput.value = q;
+  askAI();
+};
 
 // Start
 init();

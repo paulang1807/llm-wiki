@@ -4,6 +4,8 @@ import json
 import os
 import re
 import urllib.parse
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 PORT = 3737
@@ -12,6 +14,24 @@ WIKI_ROOT = UI_DIR.parent
 WIKI_DIR = WIKI_ROOT / "wiki"
 RAW_DIR = WIKI_ROOT / "raw"
 
+# --- Environment & Configuration ---
+def load_env():
+    env = {}
+    env_path = WIKI_ROOT / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().split('\n'):
+            if '=' in line and not line.strip().startswith('#'):
+                k, v = line.split('=', 1)
+                env[k.strip()] = v.strip().strip('"').strip("'")
+    return env
+
+ENV = load_env()
+CONFIG = {
+    "gemini_key": ENV.get('GOOGLE_API_KEY') or ENV.get('GEMINI_API_KEY'),
+    "ollama_url": ENV.get('OLLAMA_URL', "http://localhost:11434"),
+    "default_model": ENV.get('DEFAULT_MODEL', "gemini-2.5-flash")
+}
+
 class WikiHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(UI_DIR / "public"), **kwargs)
@@ -19,7 +39,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         url = urllib.parse.urlparse(self.path)
         if url.path.startswith('/api/'):
-            self.handle_api(url)
+            self.handle_api_get(url)
         else:
             # Check if file exists in public/, else serve index.html for SPA
             public_file = UI_DIR / "public" / url.path.lstrip('/')
@@ -27,7 +47,17 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                 self.path = '/index.html'
             super().do_GET()
 
-    def handle_api(self, url):
+    def do_POST(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path == '/api/ask':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_ask(data)
+        else:
+            self.send_error(404, "Endpoint not found")
+
+    def handle_api_get(self, url):
         params = urllib.parse.parse_qs(url.query)
         
         if url.path == '/api/tree':
@@ -90,6 +120,11 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({
                 "wikiPages": self.count_files(WIKI_DIR),
                 "rawSources": self.count_files(RAW_DIR)
+            })
+        elif url.path == '/api/status':
+            self.send_json({
+                "geminiReady": bool(CONFIG["gemini_key"]),
+                "defaultProvider": "gemini" if CONFIG["gemini_key"] else "ollama"
             })
         else:
             self.send_error(404, "API endpoint not found")
@@ -248,6 +283,99 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             if not any(part.startswith('.') for part in entry.parts):
                 count += 1
         return count
+
+    # --- AI / RAG Logic ---
+    def handle_ask(self, data):
+        query = data.get('query', '')
+        provider = data.get('provider', 'gemini')
+        model = data.get('model', '')
+        
+        if not query:
+            self.send_error(400, "Query required")
+            return
+
+        # 1. Retrieve Context (Search)
+        results = []
+        self.search_files(WIKI_DIR, query, results, WIKI_DIR)
+        
+        context_parts = []
+        # Sort by confidence or just take top 3
+        top_results = sorted(results, key=lambda x: x.get('confidence', 0), reverse=True)[:3]
+        
+        for r in top_results:
+            try:
+                content = (WIKI_DIR / r['path']).read_text(encoding='utf-8')
+                fm, body = self.parse_frontmatter(content)
+                context_parts.append(f"PAGE: {r['title']}\nCATEGORY: {r['category']}\nCONTENT:\n{body}")
+            except: pass
+        
+        context_text = "\n\n---\n\n".join(context_parts)
+        
+        system_prompt = (
+            "You are the LLM Wiki AI, a helpful technical assistant. "
+            "Use the provided wiki context to answer the user's question. "
+            "If the answer isn't in the context, use your own knowledge but clarify it's not from the wiki. "
+            "Format your response in professional Markdown with code blocks where appropriate.\n\n"
+            f"WIKI CONTEXT:\n{context_text}"
+        )
+
+        try:
+            if provider == 'gemini':
+                ans = self.call_gemini(system_prompt, query, CONFIG["gemini_key"], model or CONFIG["default_model"])
+            elif provider == 'ollama':
+                ans = self.call_ollama(system_prompt, query, model or "llama3.1")
+            else:
+                ans = "Error: Unsupported AI provider."
+            
+            self.send_json({"answer": ans, "sources": [r['title'] for r in top_results]})
+        except Exception as e:
+            self.send_json({"error": str(e)})
+
+    def call_gemini(self, system, user, key, model):
+        if not key: return "Error: Gemini API key missing. Please add GOOGLE_API_KEY to your .env file."
+        # Use validated model from CONFIG
+        url = f"https://generativelanguage.googleapis.com/v1/models/{model}:generateContent?key={key}"
+        payload = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": f"{system}\n\nUSER QUESTION: {user}"}]
+            }]
+        }
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req) as res:
+                resp_data = json.loads(res.read().decode('utf-8'))
+                return resp_data['candidates'][0]['content']['parts'][0]['text']
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            try:
+                error_json = json.loads(error_body)
+                msg = error_json.get('error', {}).get('message', str(e))
+                return f"Gemini API Error: {msg}"
+            except:
+                return f"Gemini API HTTP Error: {str(e)} - {error_body}"
+        except Exception as e:
+            return f"Error calling Gemini: {str(e)}"
+
+    def call_ollama(self, system, user, model):
+        url = f"{CONFIG['ollama_url']}/v1/chat/completions"
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user}
+            ]
+        }
+        try:
+            req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req) as res:
+                resp_data = json.loads(res.read().decode('utf-8'))
+                return resp_data['choices'][0]['message']['content']
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            return f"Ollama Error ({e.code}): {error_body}"
+        except Exception as e:
+            return f"Error connecting to Ollama: {str(e)}. Make sure it is running at {CONFIG['ollama_url']}."
 
 with socketserver.TCPServer(("", PORT), WikiHandler) as httpd:
     print(f"\n🧠 LLM Wiki UI (Python) running at http://localhost:{PORT}\n")
