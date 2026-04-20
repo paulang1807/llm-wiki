@@ -1,142 +1,107 @@
 ---
 title: "Python Basics"
 category: python
-tags: [python, fundamentals, functions, loops, generators, decorators, error-handling]
-sources: [raw/python/index.md, raw/python/README.md]
-confidence: 0.95
+tags: [python, programming, basic]
+sources: [raw/python/bas_snip.md, raw/python/setup.md, raw/python/index.md, raw/python/use-mod.md]
+confidence: 1.0
 last_updated: 2026-04-19
 stale: false
-related: [[Python OOP]], [[Python Testing]], [[Python Regex]]
+related: [[Python OOP], [Python File IO]]
 ---
 
-# Python Basics
+# Python Foundations
 
-Core Python language features covering functions, control flow, built-in patterns, and debugging. This is the reference page for foundational Python concepts.
+A comprehensive guide to starting with Python, covering environment setup, core language features, and essential standard library modules.
 
-## Key Concepts
+## 🛠️ Environment Setup
 
-### Magic Methods (Dunder Methods)
-Special methods starting and ending with double underscores. Enable **operator overloading** — defining how custom objects behave with built-in operations.
+### Virtual Environments (`venv`)
+Isolate your project dependencies from the global Python installation.
 
-| Method | Purpose |
-|--------|---------|
-| `__init__()` | Initialize objects (constructor) |
-| `__new__()` | Create objects |
-| `__str__()` | User-friendly string representation |
-| `__repr__()` | Developer-friendly string representation |
+```bash
+# Create the environment
+python -m venv my-env
 
-- `dir(obj)` — lists all attributes and methods of an object
-- `locals()` / `globals()` — inspect variable scopes
+# Activate (macOS/Linux)
+source my-env/bin/activate
 
-### Modules & `__name__`
-- All code at indentation level 0 runs when a script is executed directly
-- `__name__ == "__main__"` when script invoked directly; equals package name when imported
-
-### Functions
-
-**Map** — applies a function to every element of an iterable:
-```python
-list(map(get_len, lstStr))                    # Apply named function
-list(map(lambda x: len(x), lstStr))          # Apply lambda
-list(map(lambda x, y: x + y, lst1, lst2))   # Multiple iterables
+# Deactivate
+deactivate
 ```
 
-**Filter** — returns elements where function returns `True`:
+## ✨ Core Language Features
+
+### Magic Methods (`dunder`)
+Special methods that start and end with double underscores (`__`). They allow operator overloading and custom object behavior.
+
+- `__init__`: Instance initialization.
+- `__str__`: User-friendly string representation.
+- `__repr__`: Developer-friendly string representation.
+- `__len__`: Defines behavior for `len(obj)`.
+
+### Exception Handling
+Use `try-except-else-finally` blocks to handle errors gracefully.
+
 ```python
-list(filter(lambda x: x % 2 == 0, nums))    # Even numbers
-```
-
-**Lambda** — single-line anonymous functions:
-```python
-add_func = lambda x, y: x + y
-```
-
-### Loops
-
-> 💡 Use `for` when iterating over known items; `while` when iteration count is unknown.
-
-**Loop `else` clause** — executes when loop completes without hitting `break`:
-```python
-for item in collection:
-    if condition:
-        break
+try:
+    # Code that might raise error
+    result = 10 / 0
+except ZeroDivisionError:
+    # Specific error handling
+    print("Cannot divide by zero")
+except Exception as e:
+    # General error handling
+    print(f"Error: {e}")
 else:
-    # runs if break was never hit
-    handle_normal_completion()
+    # Executes if no error occurred
+    print("Success")
+finally:
+    # Always executes
+    print("Cleanup")
 ```
 
-**Loop control:**
-- `pass` — do nothing, continue program
-- `break` — exit innermost loop
-- `continue` — jump to next iteration
+---
 
-### Decorators
-Functions that wrap and modify other functions. Applied with `@decorator_name`.
+## 🧰 Essential Standard Libraries
+
+### Collections
+Specialized container datatypes.
+- **Counter**: Dict subclass for counting hashable objects.
+- **NamedTuple**: Lightweight data structures similar to classes.
 
 ```python
-def sample_decorator(func_to_decorate):
-    def wrapper_func():
-        print("Before")
-        func_to_decorate()
-        print("After")
-    return wrapper_func
+from collections import Counter, namedtuple
 
-@sample_decorator          # equivalent to: func = sample_decorator(func)
-def my_func():
-    print("Original function")
+# Counter
+c = Counter('abracadabra')
+print(c.most_common(2)) # [('a', 5), ('r', 2)]
+
+# NamedTuple
+Point = namedtuple('Point', ['x', 'y'])
+p = Point(10, 20)
+print(p.x, p.y)
 ```
 
-### Generators
-Memory-efficient iterators — generate values one at a time with `yield` instead of storing everything in memory:
-
+### Datetime & Time
 ```python
-def generate_numbers(n):
-    for num in range(n):
-        yield num              # yields one value at a time
+import datetime
 
-for i in generate_numbers(100):
-    print(i)
-
-list(generate_numbers(100))   # materialise if needed
+today = datetime.date.today()
+now = datetime.datetime.now()
+delta = datetime.timedelta(days=7)
+next_week = today + delta
 ```
 
-### User Input
+### Random
 ```python
-user_input = input("Prompt: ").strip()         # visible input
-user_secret = getpass.getpass("Password: ")   # masked input
+import random
+
+num = random.randint(1, 10)
+choice = random.choice(['A', 'B', 'C'])
+random.shuffle(my_list) # In-place shuffle
 ```
 
-### Error Handling
-```python
-while True:
-    try:
-        # attempt something
-    except SpecificError as e:
-        continue           # retry
-    except Exception as ex:
-        continue           # catch-all
-    else:
-        break              # success — exit loop
-    finally:
-        pass               # always runs, even after break
-```
-
-## Debugging
-
-### Python Debugger (pdb)
-Interactive debugging — pause program, inspect variables, step through code:
-```python
-import pdb
-pdb.set_trace()   # insert breakpoint here
-# Type 'q' to quit pdb
-```
-
-## Relationships
-- [[Python OOP]] — classes, inheritance, encapsulation
-- [[Python Testing]] — unittest, doctest, pylint
-- [[Python Regex]] — pattern matching with `re` module
-- [[ML Workflow]] — Python is the primary language for ML pipelines
-
-## Source References
-- `raw/python/index.md` — main content
-- `raw/python/README.md` — repo overview with Colab notebooks
+## 🧪 Testing & Debugging
+- **Pylint**: Static code analysis and style checking.
+- **Unittest**: Built-in framework for automated testing.
+- **PDB**: Python's interactive debugger (`pdb.set_trace()`).

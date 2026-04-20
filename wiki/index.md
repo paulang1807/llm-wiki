@@ -15,15 +15,16 @@ Query tip: read this file first, then open only the relevant pages.
 
 | Page | Summary | Tags | Updated |
 |------|---------|------|---------|
-| [[Python Basics]] | Core language: functions, loops, decorators, generators, error handling, debugging | python, fundamentals | 2026-04-19 |
-| [[Python OOP]] | Classes, inheritance, encapsulation, polymorphism | python, oop | 2026-04-19 |
-| [[Python Regex]] | Pattern matching with the `re` module | python, regex | 2026-04-19 |
-| [[Python Web Scraping]] | requests, BeautifulSoup, Selenium | python, web-scraping | 2026-04-19 |
-| [[Python File IO]] | File reading/writing, CSV, JSON, pathlib | python, file-io | 2026-04-19 |
-| [[Python Testing]] | unittest, doctest, pylint; test patterns | python, testing | 2026-04-19 |
-| [[Python Email]] | smtplib, email module, automated email sending | python, email | 2026-04-19 |
-| [[Python Images]] | PIL/Pillow, image manipulation | python, images | 2026-04-19 |
-| [[Python Jupyter]] | Jupyter notebook tips, magic commands, widgets | python, jupyter | 2026-04-19 |
+| [[Python Basics]] | Env setup (venv), magic methods, collections, datetime, random, error handling | python, fundamentals | 2026-04-20 |
+| [[Python OOP]] | Classes, inheritance, encapsulation, polymorphism, abstract base classes | python, oop | 2026-04-20 |
+| [[Python Regex]] | `re` module: match, search, findall, named groups, lookarounds | python, regex | 2026-04-20 |
+| [[Python Web Scraping]] | BeautifulSoup, LXML, Selenium, Playwright, ethical scraping | python, web-scraping | 2026-04-20 |
+| [[Python File IO]] | `os`, `shutil`, `zipfile`, CSV reader/writer, structured data | python, file-io | 2026-04-20 |
+| [[Python Testing]] | unittest, doctest, pylint; test patterns | python, testing | 2026-04-20 |
+| [[Python Email]] | `smtplib` (TLS/SSL) and `imaplib` for automated mail handling | python, email | 2026-04-20 |
+| [[Python Images]] | PIL/Pillow: coordinates, resize, crop, alpha/transparency | python, images | 2026-04-20 |
+| [[Python Jupyter]] | IPython magics, ipywidgets (interactive UI), HTML display, kernels | python, jupyter | 2026-04-20 |
+| [[Python Databases]] | SQLite3: connections, tables, and CRUD patterns with upsert logic | python, sqlite, data | 2026-04-20 |
 
 ---
 
