@@ -32,109 +32,11 @@ CONFIG = {
     "default_model": ENV.get('DEFAULT_MODEL', "gemini-2.5-flash")
 }
 
-class WikiHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(UI_DIR / "public"), **kwargs)
-
-    def do_GET(self):
-        url = urllib.parse.urlparse(self.path)
-        if url.path.startswith('/api/'):
-            self.handle_api_get(url)
-        else:
-            # Check if file exists in public/, else serve index.html for SPA
-            public_file = UI_DIR / "public" / url.path.lstrip('/')
-            if not public_file.is_file() and not url.path.startswith('/api/'):
-                self.path = '/index.html'
-            super().do_GET()
-
-    def do_POST(self):
-        url = urllib.parse.urlparse(self.path)
-        if url.path == '/api/ask':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data)
-            self.handle_ask(data)
-        else:
-            self.send_error(404, "Endpoint not found")
-
-    def handle_api_get(self, url):
-        params = urllib.parse.parse_qs(url.query)
-        
-        if url.path == '/api/tree':
-            data = self.walk_dir(WIKI_DIR, WIKI_DIR)
-            self.send_json(data)
-        elif url.path == '/api/raw-tree':
-            data = self.walk_dir(RAW_DIR, RAW_DIR)
-            self.send_json(data)
-        elif url.path == '/api/page':
-            path_val = params.get('path', [None])[0]
-            if not path_val:
-                self.send_error(400, "path required")
-                return
-            
-            wiki_path = WIKI_DIR / path_val
-            raw_path = RAW_DIR / path_val
-            
-            full_path = None
-            if wiki_path.exists(): full_path = wiki_path
-            elif raw_path.exists(): full_path = raw_path
-            else:
-                self.send_error(404, "Page not found")
-                return
-            
-            # Security
-            if not str(full_path.resolve()).startswith((str(WIKI_DIR.resolve()), str(RAW_DIR.resolve()))):
-                self.send_error(403, "Forbidden")
-                return
-            
-            try:
-                content = full_path.read_text(encoding='utf-8')
-                fm, body = self.parse_frontmatter(content)
-                self.send_json({
-                    "frontmatter": fm,
-                    "body": body,
-                    "path": path_val,
-                    "raw": content
-                })
-            except Exception as e:
-                self.send_error(500, str(e))
-                
-        elif url.path == '/api/search':
-            query = params.get('q', [''])[0]
-            if len(query) < 2:
-                self.send_json([])
-                return
-            results = []
-            self.search_files(WIKI_DIR, query, results, WIKI_DIR)
-            self.send_json(results[:20])
-            
-        elif url.path == '/api/index':
-            index = self.build_page_index(WIKI_DIR, {}, WIKI_DIR)
-            self.send_json(index)
-            
-        elif url.path == '/api/graph':
-            data = self.build_graph(WIKI_DIR, WIKI_DIR)
-            self.send_json(data)
-            
-        elif url.path == '/api/stats':
-            self.send_json({
-                "wikiPages": self.count_files(WIKI_DIR),
-                "rawSources": self.count_files(RAW_DIR)
-            })
-        elif url.path == '/api/status':
-            self.send_json({
-                "geminiReady": bool(CONFIG["gemini_key"]),
-                "defaultProvider": "gemini" if CONFIG["gemini_key"] else "ollama"
-            })
-        else:
-            self.send_error(404, "API endpoint not found")
-
-    def send_json(self, data):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+# --- Core Wiki Engine ---
+class WikiEngine:
+    def __init__(self, wiki_dir, raw_dir):
+        self.wiki_dir = wiki_dir
+        self.raw_dir = raw_dir
 
     def parse_frontmatter(self, content):
         match = re.match(r'^---\n(.*?)\n---\n?(.*)$', content, re.DOTALL)
@@ -145,22 +47,17 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         body = match.group(2)
         fm = {}
         
-        # Simple YAML-ish parser
         for line in fm_text.split('\n'):
             if ':' in line:
                 key, val = line.split(':', 1)
                 key = key.strip()
                 val = val.strip()
-                # Handle lists [a, b]
                 if val.startswith('[') and val.endswith(']'):
                     val = [v.strip().strip('"').strip("'") for v in val[1:-1].split(',')]
-                # Handle numbers
                 elif re.match(r'^\d+(\.\d+)?$', val):
                     val = float(val) if '.' in val else int(val)
-                # Handle booleans
                 elif val.lower() == 'true': val = True
                 elif val.lower() == 'false': val = False
-                # Handle strings
                 else:
                     val = val.strip('"').strip("'")
                 fm[key] = val
@@ -169,13 +66,10 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
     def walk_dir(self, directory, base_dir):
         result = []
         if not directory.exists(): return result
-        
         entries = sorted(list(directory.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower()))
-        
         for entry in entries:
             if entry.name.startswith('.'): continue
             relative_path = str(entry.relative_to(base_dir))
-            
             if entry.is_dir():
                 result.append({
                     "type": "dir",
@@ -246,7 +140,6 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         nodes = []
         edges = []
         index = self.build_page_index(directory, {}, base_dir)
-        
         def walk(d):
             if not d.exists(): return
             for entry in d.iterdir():
@@ -266,7 +159,6 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                         "confidence": fm.get('confidence', 0.8),
                         "stale": fm.get('stale', False)
                     })
-                    # Wikilinks
                     wikilinks = re.findall(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]', content)
                     for target_title in wikilinks:
                         target_path = index.get(target_title) or index.get(target_title.lower())
@@ -274,15 +166,126 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                             edges.append({"source": node_id, "target": target_path})
                 except: pass
         walk(directory)
-        return {"nodes": nodes, "edges": list({(e['source'], e['target']) for e in edges})} # unique edges
+        return {"nodes": nodes, "edges": list({(e['source'], e['target']) for e in edges})}
 
     def count_files(self, directory):
-        count = 0
         if not directory.exists(): return 0
-        for entry in directory.rglob('*.md'):
-            if not any(part.startswith('.') for part in entry.parts):
-                count += 1
-        return count
+        return len(list(directory.rglob('*.md')))
+
+    def get_rag_context(self, query):
+        results = []
+        self.search_files(self.wiki_dir, query, results, self.wiki_dir)
+        top_results = sorted(results, key=lambda x: x.get('confidence', 0), reverse=True)[:3]
+        context_parts = []
+        for r in top_results:
+            try:
+                content = (self.wiki_dir / r['path']).read_text(encoding='utf-8')
+                fm, body = self.parse_frontmatter(content)
+                context_parts.append(f"PAGE: {r['title']}\nCATEGORY: {r['category']}\nCONTENT:\n{body}")
+            except: pass
+        return "\n\n---\n\n".join(context_parts), [r['title'] for r in top_results]
+
+ENGINE = WikiEngine(WIKI_DIR, RAW_DIR)
+
+class WikiHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(UI_DIR / "public"), **kwargs)
+
+    def do_GET(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path.startswith('/api/'):
+            self.handle_api_get(url)
+        else:
+            # Check if file exists in public/, else serve index.html for SPA
+            public_file = UI_DIR / "public" / url.path.lstrip('/')
+            if not public_file.is_file() and not url.path.startswith('/api/'):
+                self.path = '/index.html'
+            super().do_GET()
+
+    def do_POST(self):
+        url = urllib.parse.urlparse(self.path)
+        if url.path == '/api/ask':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_ask(data)
+        else:
+            self.send_error(404, "Endpoint not found")
+
+    def handle_api_get(self, url):
+        params = urllib.parse.parse_qs(url.query)
+        
+        if url.path == '/api/tree':
+            data = ENGINE.walk_dir(WIKI_DIR, WIKI_DIR)
+            self.send_json(data)
+        elif url.path == '/api/raw-tree':
+            data = ENGINE.walk_dir(RAW_DIR, RAW_DIR)
+            self.send_json(data)
+        elif url.path == '/api/page':
+            path_val = params.get('path', [None])[0]
+            if not path_val:
+                self.send_error(400, "path required")
+                return
+            
+            wiki_path = WIKI_DIR / path_val
+            raw_path = RAW_DIR / path_val
+            full_path = wiki_path if wiki_path.exists() else (raw_path if raw_path.exists() else None)
+            
+            if not full_path:
+                self.send_error(404, "Page not found")
+                return
+            
+            try:
+                content = full_path.read_text(encoding='utf-8')
+                fm, body = ENGINE.parse_frontmatter(content)
+                self.send_json({
+                    "frontmatter": fm,
+                    "body": body,
+                    "path": path_val,
+                    "raw": content
+                })
+            except Exception as e:
+                self.send_error(500, str(e))
+                
+        elif url.path == '/api/search':
+            query = params.get('q', [''])[0]
+            if len(query) < 2:
+                self.send_json([])
+                return
+            results = []
+            ENGINE.search_files(WIKI_DIR, query, results, WIKI_DIR)
+            self.send_json(results[:20])
+            
+        elif url.path == '/api/index':
+            index = ENGINE.build_page_index(WIKI_DIR, {}, WIKI_DIR)
+            self.send_json(index)
+            
+        elif url.path == '/api/graph':
+            data = ENGINE.build_graph(WIKI_DIR, WIKI_DIR)
+            self.send_json(data)
+            
+        elif url.path == '/api/stats':
+            self.send_json({
+                "wikiPages": ENGINE.count_files(WIKI_DIR),
+                "rawSources": ENGINE.count_files(RAW_DIR)
+            })
+        elif url.path == '/api/status':
+            self.send_json({
+                "geminiReady": bool(CONFIG["gemini_key"]),
+                "defaultProvider": "gemini" if CONFIG["gemini_key"] else "ollama"
+            })
+        else:
+            self.send_error(404, "API endpoint not found")
+
+    def send_json(self, data):
+        try:
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending JSON: {e}")
 
     # --- AI / RAG Logic ---
     def handle_ask(self, data):
@@ -294,22 +297,8 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(400, "Query required")
             return
 
-        # 1. Retrieve Context (Search)
-        results = []
-        self.search_files(WIKI_DIR, query, results, WIKI_DIR)
-        
-        context_parts = []
-        # Sort by confidence or just take top 3
-        top_results = sorted(results, key=lambda x: x.get('confidence', 0), reverse=True)[:3]
-        
-        for r in top_results:
-            try:
-                content = (WIKI_DIR / r['path']).read_text(encoding='utf-8')
-                fm, body = self.parse_frontmatter(content)
-                context_parts.append(f"PAGE: {r['title']}\nCATEGORY: {r['category']}\nCONTENT:\n{body}")
-            except: pass
-        
-        context_text = "\n\n---\n\n".join(context_parts)
+        # 1. Retrieve Context
+        context_text, sources = ENGINE.get_rag_context(query)
         
         system_prompt = (
             "You are the LLM Wiki AI, a helpful technical assistant. "
@@ -327,7 +316,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 ans = "Error: Unsupported AI provider."
             
-            self.send_json({"answer": ans, "sources": [r['title'] for r in top_results]})
+            self.send_json({"answer": ans, "sources": sources})
         except Exception as e:
             self.send_json({"error": str(e)})
 
@@ -377,6 +366,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             return f"Error connecting to Ollama: {str(e)}. Make sure it is running at {CONFIG['ollama_url']}."
 
-with socketserver.TCPServer(("", PORT), WikiHandler) as httpd:
-    print(f"\n🧠 LLM Wiki UI (Python) running at http://localhost:{PORT}\n")
-    httpd.serve_forever()
+if __name__ == "__main__":
+    with socketserver.TCPServer(("", PORT), WikiHandler) as httpd:
+        print(f"\n🧠 LLM Wiki UI (Python) running at http://localhost:{PORT}\n")
+        httpd.serve_forever()
