@@ -8,6 +8,9 @@ import urllib.request
 import urllib.error
 import datetime
 import time
+import shutil
+import cgi
+import pypdf
 from pathlib import Path
 
 PORT = 3737
@@ -89,6 +92,7 @@ class WikiEngine:
                 try:
                     content = entry.read_text(encoding='utf-8')
                     fm, _ = self.parse_frontmatter(content, file_path=str(entry))
+                    if fm.get('stale'): continue # Skip stale files in tree
                     if 'title' in fm: title = fm['title']
                 except: pass
                 result.append({
@@ -109,6 +113,7 @@ class WikiEngine:
                 try:
                     content = entry.read_text(encoding='utf-8')
                     fm, body = self.parse_frontmatter(content, file_path=str(entry))
+                    if fm.get('stale'): continue # Skip stale files in search
                     title = fm.get('title', entry.stem)
                     full_text = (body + ' ' + title).lower()
                     if query.lower() in full_text:
@@ -135,6 +140,7 @@ class WikiEngine:
                 try:
                     content = entry.read_text(encoding='utf-8')
                     fm, _ = self.parse_frontmatter(content, file_path=str(entry))
+                    if fm.get('stale'): continue # Skip stale files in index
                     title = fm.get('title', entry.stem)
                     rel_path = str(entry.relative_to(base_dir)).replace('\\', '/')
                     index[title] = rel_path
@@ -216,6 +222,20 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data)
             self.handle_ask(data)
+        elif url.path == '/api/archive':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_archive(data)
+        elif url.path == '/api/save':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_save(data)
+        elif url.path == '/api/upload':
+            self.handle_upload()
+        elif url.path == '/api/ingest-inbox':
+            self.handle_ingest_inbox()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -293,6 +313,173 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode('utf-8'))
         except Exception as e:
             print(f"Error sending JSON: {e}")
+
+    def handle_archive(self, data):
+        path_val = data.get('path', '')
+        if not path_val:
+            self.send_error(400, "Path required")
+            return
+            
+        wiki_path = WIKI_DIR / path_val
+        raw_path = RAW_DIR / path_val
+        target_file = wiki_path if wiki_path.exists() else (raw_path if raw_path.exists() else None)
+        
+        if not target_file:
+            self.send_error(404, f"File not found: {path_val}")
+            return
+            
+        archive_root = WIKI_ROOT / "archive"
+        rel_to_root = target_file.relative_to(WIKI_ROOT)
+        dest_path = archive_root / rel_to_root
+        
+        try:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(target_file), str(dest_path))
+            self.send_json({"status": "archived", "destination": str(dest_path.relative_to(WIKI_ROOT))})
+        except Exception as e:
+            self.send_error(500, f"Archive failed: {str(e)}")
+
+    def handle_save(self, data):
+        path_val = data.get('path', '')
+        content = data.get('content', '')
+        
+        if not path_val:
+            self.send_error(400, "Path required")
+            return
+            
+        # Security: Prevent directory traversal
+        if '..' in path_val or path_val.startswith('/'):
+            self.send_error(403, "Invalid path")
+            return
+            
+        full_path = WIKI_DIR / path_val
+        
+        try:
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text(content, encoding='utf-8')
+            
+            fm, _ = ENGINE.parse_frontmatter(content, file_path=str(full_path))
+            self.send_json({
+                "status": "saved",
+                "path": path_val,
+                "title": fm.get('title', full_path.stem)
+            })
+        except Exception as e:
+            self.send_error(500, f"Save failed: {str(e)}")
+
+    def extract_text_from_pdf(self, file_path):
+        try:
+            reader = pypdf.PdfReader(str(file_path))
+            text_parts = []
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            return "\n\n".join(text_parts)
+        except Exception as e:
+            print(f"PDF Extraction Error for {file_path}: {e}")
+            return f"Error: Unable to extract text from PDF: {str(e)}"
+
+    def handle_upload(self):
+        try:
+            form = cgi.FieldStorage(
+                fp=self.rfile,
+                headers=self.headers,
+                environ={'REQUEST_METHOD': 'POST'}
+            )
+            if 'file' not in form:
+                self.send_error(400, "No file uploaded")
+                return
+                
+            file_item = form['file']
+            if not file_item.filename:
+                self.send_error(400, "No filename provided")
+                return
+                
+            filename = os.path.basename(file_item.filename)
+            inbox_path = RAW_DIR / "inbox" / filename
+            inbox_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(inbox_path, 'wb') as f:
+                f.write(file_item.file.read())
+                
+            self.send_json({"status": "uploaded", "filename": filename})
+        except Exception as e:
+            self.send_error(500, f"Upload failed: {str(e)}")
+
+    def handle_ingest_inbox(self):
+        inbox = RAW_DIR / "inbox"
+        if not inbox.exists():
+            self.send_json({"processed": 0, "status": "Inbox empty"})
+            return
+            
+        files = [f for f in inbox.iterdir() if f.is_file() and not f.name.startswith('.')]
+        if not files:
+            self.send_json({"processed": 0, "status": "Inbox empty"})
+            return
+            
+        processed = []
+        for f in files:
+            try:
+                result = self.ingest_one_file(f)
+                processed.append(result)
+            except Exception as e:
+                print(f"Error ingesting {f.name}: {e}")
+                
+        self.send_json({"processed": len(processed), "items": processed})
+
+    def ingest_one_file(self, file_path):
+        if file_path.suffix.lower() == '.pdf':
+            content = self.extract_text_from_pdf(file_path)
+            if not content.strip():
+                content = f"Note: PDF extraction returned no text for {file_path.name}. Detailed analysis may be required."
+        else:
+            content = file_path.read_text(encoding='utf-8', errors='ignore')
+        
+        system_prompt = (
+            "You are the LLM Wiki Ingestion AI. Your task is to categorize and synthesize a raw note into a high-quality wiki page.\n"
+            "Respond ONLY with a valid Markdown file containing YAML frontmatter and a clean, technical summary of the note.\n\n"
+            "FRONTMATTER FIELDS:\n"
+            "- title: Descriptive title\n"
+            "- category: One of [python, ml, genai, concepts, meta, os]\n"
+            "- tags: List of relevant keywords\n"
+            "- confidence: float 0.0 to 1.0\n"
+            "- related: List of [[Wiki Link]] to related pages if any\n"
+            "- sources: List of source filenames\n\n"
+            "EXAMPLE OUTPUT:\n"
+            "---\ntitle: Git Basics\ncategory: os\ntags: [git, version control]\nconfidence: 1.0\n---\n# Git Basics\n..."
+        )
+        
+        user_prompt = f"SOURCE FILENAME: {file_path.name}\nCONTENT:\n{content}"
+        
+        # Use provider based on readiness
+        provider = "gemini" if CONFIG["gemini_key"] else "ollama"
+        if provider == 'gemini':
+            ans = self.call_gemini(system_prompt, user_prompt, CONFIG["gemini_key"], CONFIG["default_model"])
+        else:
+            ans = self.call_ollama(system_prompt, user_prompt, "llama3.1")
+            
+        # Parse result
+        fm, _ = ENGINE.parse_frontmatter(ans)
+        title = fm.get('title', file_path.stem)
+        category = fm.get('category', 'meta')
+        # Sanitize filename
+        safe_name = re.sub(r'[^a-z0-9\-]', '', title.lower().replace(' ', '-'))
+        if not safe_name: safe_name = "untitled"
+        filename = safe_name + ".md"
+        dest_path = WIKI_DIR / category / filename
+        
+        # Write to Wiki
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_text(ans, encoding='utf-8')
+        
+        # Move raw source to raw/ instead of deleting
+        raw_dest = RAW_DIR / file_path.name
+        if raw_dest.exists(): # Handle collision
+            raw_dest = RAW_DIR / f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{file_path.name}"
+        shutil.move(str(file_path), str(raw_dest))
+        
+        return {"title": title, "path": f"{category}/{filename}"}
 
     # --- AI / RAG Logic ---
     def handle_ask(self, data):

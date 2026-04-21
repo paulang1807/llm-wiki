@@ -125,16 +125,14 @@ When asked a question:
 4. If the answer is valuable and reusable, offer to file it as a new wiki page
 5. Append a query entry to `wiki/log.md`
 
-## Lint Workflow
+## Lint & Maintenance Workflow
 
-When told to "lint" the wiki:
-1. Check for contradictions between pages
-2. Find orphan pages (no inbound `[[links]]`)
-3. Find concepts mentioned but lacking their own page
-4. Flag pages with `confidence < 0.7`
-5. Flag pages with `last_updated` older than 90 days
-6. Suggest new sources to look for
-7. Log findings in `wiki/log.md`
+When told to "lint" or "maintain the wiki":
+1. **Stale Flagging**: If a page is obsolete, mark it `stale: true` in frontmatter. The system will automatically exclude it from search, RAG context, and the sidebar.
+2. **Archiving**: To fully remove a note from the active workspace, move it to the `archive/` directory.
+3. **Clean up**: Find contradictions, orphans, and concepts lacking pages.
+4. **Health Check**: Flag pages with `confidence < 0.7` or `last_updated > 90 days`.
+5. **Log**: Record all maintenance actions in `wiki/log.md`.
 
 ## Naming Conventions
 

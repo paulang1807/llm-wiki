@@ -7,7 +7,7 @@ A next-generation personal knowledge base covering **software engineering, cloud
 ## ✨ Core Features
 
 - **🧠 "Ask the Wiki" (RAG)**: A built-in AI assistant that performs semantic search over your notes and responds using context-aware Retrieval Augmented Generation.
-- **🚀 Autonomic Ingestion**: Simply drop notes into the inbox; the AI autonomously classifies, archives, and cross-links them into the wiki.
+- **🚀 Autonomic Ingestion**: Simply drop notes into the inbox (supports **Markdown, PDF, Text, HTML**); the AI autonomously classifies, archives, and cross-links them into the wiki.
 - **🌐 Interactive Graph**: Visualize connections between knowledge domains with a real-time BFS/DFS graph explorer.
 - **🔍 Global Instant Search**: Millisecond-fast search across all categories and raw sources.
 - **🎨 Premium Aesthetics**: Glassmorphic UI with dark mode support, fluid animations, and a modern design system.
@@ -22,7 +22,7 @@ A next-generation personal knowledge base covering **software engineering, cloud
 - **Structure**:
     - `raw/`: Immutable source documents (LLM read-only).
     - `wiki/`: AI-generated and maintained summaries.
-    - `tests/`: 14+ automated unit tests covering RAG, API, and core logic.
+    - `tests/`: 25+ automated unit tests covering RAG, API, and core logic.
 
 ---
 
@@ -59,7 +59,7 @@ This project follows a streamlined ingestion workflow:
 1.  **COLLECT**: Drop any note (**Markdown, Text, HTML, RTF**) into `raw/inbox/`.
 2.  **PROCESS**: Tell your LLM developer (Antigravity): `Ingest inbox`. 
     - *Tip: For historical notes, you can specify a date: `Ingest inbox with date 2022-01-01`.*
-3.  **CURATE**: Use the Web UI to review the AI's synthesis and the Knowledge Graph to find gaps.
+3.  **MANAGE**: Use the **`+` (New Page)** button in the sidebar or the **Edit** button on any page to update your wiki directly from the browser.
 4.  **QUERY**: Use the built-in "Ask AI" drawer to query your entire knowledge base in natural language.
 
 ---
@@ -74,10 +74,11 @@ The wiki is structured to automatically handle:
 
 ---
 
-## 📋 Meta-Management
-- **Confidence Scoring**: Every page includes a `confidence` rating (0.0–1.0) based on source coverage.
-- **📅 Chrono-Accuracy**: 
-    - **Explicit Tagging**: Notes can be backdated during ingestion for historical accuracy.
-    - **Smart Fallback**: If no date is provided, the UI automatically falls back to the file's **Modification Time** (`mtime`).
-- **Stale Detection**: The system identifies pages that haven't been updated after relevant new sources were added.
-- **Graph Metadata**: Automatic extraction of tags and categories for visualization.
+- **📋 Meta-Management**: 
+    - **Confidence Scoring**: Every page includes a `confidence` rating (0.0–1.0) based on source coverage.
+    - **📅 Chrono-Accuracy**: Support for historical backdating and automatic `mtime` fallbacks.
+    - **🧹 Pruning & Archiving**:
+        - **Stale Flag**: Set `stale: true` in a note's frontmatter to remove it from search, RAG, and the UI without deleting the file.
+        - **Permanent Archive**: Move files to the `archive/` directory to fully decommission them while preserving history.
+    - **Stale Detection**: Automated flagging of pages that haven't been updated after relevant new sources were added.
+    - **Graph Metadata**: Automatic extraction of tags and categories for visualization.

@@ -14,7 +14,8 @@ const state = {
     provider: 'gemini',
     geminiReady: false,
     messages: []
-  }
+  },
+  isEditing: false
 };
 
 // ── DOM Elements ──────────────────────────────────────────────
@@ -59,7 +60,23 @@ const elements = {
   btnSaveSetup: document.getElementById('btnSaveSetup'),
   selectProvider: document.getElementById('selectProvider'),
   geminiSetup: document.getElementById('geminiSetup'),
-  ollamaSetup: document.getElementById('ollamaSetup')
+  ollamaSetup: document.getElementById('ollamaSetup'),
+  
+  // Management Elements
+  btnNewPage: document.getElementById('btnNewPage'),
+  btnEdit: document.getElementById('btnEdit'),
+  btnArchive: document.getElementById('btnArchive'),
+  editorView: document.getElementById('editorView'),
+  editorPath: document.getElementById('editorPath'),
+  editorTextarea: document.getElementById('editorTextarea'),
+  btnSave: document.getElementById('btnSave'),
+  btnCancel: document.getElementById('btnCancel'),
+  
+  // Ingestion Elements
+  btnSyncInbox: document.getElementById('btnSyncInbox'),
+  dropZone: document.getElementById('dropZone'),
+  statusToast: document.getElementById('statusToast'),
+  statusText: document.getElementById('statusText')
 };
 
 // ── Initialization ───────────────────────────────────────────
@@ -412,6 +429,28 @@ function setupEventListeners() {
     elements.geminiSetup.style.display = e.target.value === 'gemini' ? 'block' : 'none';
     elements.ollamaSetup.style.display = e.target.value === 'ollama' ? 'block' : 'none';
   });
+  
+  // Management
+  elements.btnNewPage.addEventListener('click', createNewPage);
+  elements.btnEdit.addEventListener('click', toggleEdit);
+  elements.btnArchive.addEventListener('click', archivePage);
+  elements.btnSave.addEventListener('click', savePage);
+  elements.btnCancel.addEventListener('click', () => setEditMode(false));
+  elements.btnSyncInbox.addEventListener('click', ingestInbox);
+
+  // Drag & Drop
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    elements.dropZone.style.display = 'flex';
+  });
+  
+  window.addEventListener('dragleave', (e) => {
+    if (e.relatedTarget === null) {
+      elements.dropZone.style.display = 'none';
+    }
+  });
+
+  window.addEventListener('drop', handleDrop);
 
   elements.chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -510,6 +549,170 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
+}
+
+// ── Management Logic ─────────────────────────────────────────
+
+function setEditMode(active) {
+  state.isEditing = active;
+  elements.markdownBody.style.display = active ? 'none' : 'block';
+  elements.editorView.style.display = active ? 'flex' : 'none';
+  elements.btnEdit.style.display = active ? 'none' : 'block';
+  elements.btnArchive.style.display = active ? 'none' : 'block';
+  if (active && state.ai.isOpen) toggleChat(); // Close AI when editing
+}
+
+function toggleEdit() {
+  if (!state.currentPage) return;
+  elements.editorPath.value = state.currentPage.path;
+  elements.editorPath.disabled = true;
+  elements.editorTextarea.value = state.currentPage.raw;
+  setEditMode(true);
+}
+
+function createNewPage() {
+  state.currentPage = null;
+  elements.pageView.style.display = 'block';
+  elements.welcome.style.display = 'none';
+  elements.pageTitle.textContent = 'New Wiki Page';
+  elements.breadcrumb.textContent = 'root';
+  elements.tagList.innerHTML = '';
+  elements.confidenceBadge.style.display = 'none';
+  
+  elements.editorPath.value = '';
+  elements.editorPath.disabled = false;
+  elements.editorTextarea.value = '---\ntitle: New Page\nlast_updated: ' + new Date().toISOString().split('T')[0] + '\ncategory: meta\ntags: []\nconfidence: 1.0\n---\n\nWrite content here...';
+  
+  setEditMode(true);
+}
+
+async function savePage() {
+  const path = elements.editorPath.value.trim();
+  const content = elements.editorTextarea.value;
+  
+  if (!path) {
+    alert('Path is required (e.g. category/my-page.md)');
+    return;
+  }
+
+  elements.btnSave.disabled = true;
+  elements.btnSave.textContent = 'Saving...';
+
+  try {
+    const res = await fetch('/api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, content })
+    });
+    
+    if (!res.ok) throw new Error('Failed to save');
+    
+    setEditMode(false);
+    
+    // Refresh UI
+    await Promise.all([loadTree(), loadIndex(), loadStats()]);
+    loadPage(path);
+    
+  } catch (err) {
+    alert('Error saving page: ' + err.message);
+  } finally {
+    elements.btnSave.disabled = false;
+    elements.btnSave.textContent = 'Save Changes';
+  }
+}
+
+async function archivePage() {
+  if (!state.currentPage) return;
+  if (!confirm(`Are you sure you want to archive "${state.currentPage.frontmatter.title || state.currentPage.path}"?`)) return;
+
+  try {
+    const res = await fetch('/api/archive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: state.currentPage.path })
+    });
+    
+    if (!res.ok) throw new Error('Failed to archive');
+    
+    state.currentPage = null;
+    elements.pageView.style.display = 'none';
+    elements.welcome.style.display = 'flex';
+    
+    await Promise.all([loadTree(), loadIndex(), loadStats()]);
+    
+  } catch (err) {
+    alert('Error archiving page: ' + err.message);
+  }
+}
+
+// ── Ingestion Logic ──────────────────────────────────────────
+
+async function handleDrop(e) {
+  e.preventDefault();
+  elements.dropZone.style.display = 'none';
+  
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length === 0) return;
+
+  showToast(`Uploading ${files.length} file(s)...`);
+  
+  try {
+    for (const file of files) {
+      await uploadFile(file);
+    }
+    showToast('Starting Ingestion...');
+    await ingestInbox();
+  } catch (err) {
+    showToast('Upload failed: ' + err.message);
+    setTimeout(hideToast, 3000);
+  }
+}
+
+async function uploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!res.ok) throw new Error('Failed to upload ' + file.name);
+  return await res.json();
+}
+
+async function ingestInbox() {
+  if (state.isProcessing) return;
+  state.isProcessing = true;
+  showToast('AI Ingesting Content...');
+  elements.btnSyncInbox.style.opacity = '0.5';
+
+  try {
+    const res = await fetch('/api/ingest-inbox', { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.processed > 0) {
+      showToast(`Successfully ingested ${data.processed} note(s)!`);
+      await Promise.all([loadTree(), loadIndex(), loadStats()]);
+    } else {
+      showToast('Inbox is empty.');
+    }
+  } catch (err) {
+    showToast('Ingestion failed: ' + err.message);
+  } finally {
+    state.isProcessing = false;
+    elements.btnSyncInbox.style.opacity = '1';
+    setTimeout(hideToast, 3000);
+  }
+}
+
+function showToast(text) {
+  elements.statusText.textContent = text;
+  elements.statusToast.style.display = 'flex';
+}
+
+function hideToast() {
+  elements.statusToast.style.display = 'none';
 }
 
 // ── AI Assistant Logic ───────────────────────────────────────

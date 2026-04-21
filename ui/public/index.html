@@ -61,11 +61,39 @@
 
   <!-- ── Main Layout ────────────────────────────────────────────── -->
   <div class="layout" id="layout">
+    
+    <!-- Drop Zone Overlay -->
+    <div id="dropZone" class="drop-zone" style="display:none">
+      <div class="drop-zone-content">
+        <div class="drop-zone-icon">📥</div>
+        <div class="drop-zone-text">Drop files to Ingest</div>
+      </div>
+    </div>
+
+    <!-- Status Toast -->
+    <div id="statusToast" class="status-toast" style="display:none">
+      <div class="status-toast-loader"></div>
+      <span id="statusText">Processing...</span>
+    </div>
 
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-section">
-        <div class="sidebar-label">WIKI PAGES</div>
+        <div class="sidebar-header-row">
+          <div class="sidebar-label">WIKI PAGES</div>
+          <div class="header-actions" style="margin-left:auto; gap:4px;">
+            <button class="icon-btn" id="btnSyncInbox" title="Process Inbox">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
+            <button class="icon-btn" id="btnNewPage" title="Create new page">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
         <nav id="wikiNav" class="nav-tree"></nav>
       </div>
     </aside>
@@ -89,7 +117,13 @@
       <!-- Page content -->
       <div class="page-view" id="pageView" style="display:none">
         <div class="page-header" id="pageHeader">
-          <div class="breadcrumb" id="breadcrumb"></div>
+          <div class="header-main-row">
+            <div class="breadcrumb" id="breadcrumb"></div>
+            <div class="header-actions">
+              <button class="action-btn" id="btnEdit" title="Edit this page">Edit</button>
+              <button class="action-btn btn-danger" id="btnArchive" title="Move to archive">Archive</button>
+            </div>
+          </div>
           <h1 class="page-title" id="pageTitle"></h1>
           <div class="page-meta-row">
             <div class="tag-list" id="tagList"></div>
@@ -97,6 +131,21 @@
           </div>
         </div>
         <div class="markdown-body" id="markdownBody"></div>
+
+        <!-- Editor View -->
+        <div class="editor-view" id="editorView" style="display:none">
+          <div class="editor-toolbar">
+            <div class="editor-path-row">
+              <label>Path:</label>
+              <input type="text" id="editorPath" placeholder="category/filename.md">
+            </div>
+            <div class="editor-actions">
+              <button class="action-btn btn-primary" id="btnSave">Save Changes</button>
+              <button class="action-btn" id="btnCancel">Cancel</button>
+            </div>
+          </div>
+          <textarea id="editorTextarea" spellcheck="false" placeholder="Write your markdown here..."></textarea>
+        </div>
       </div>
 
       <!-- Graph view -->
