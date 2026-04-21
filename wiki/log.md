@@ -73,19 +73,22 @@ Filter with: `grep "^## \[" log.md | tail -10`
   - `wiki/genai/llm-concepts.md` (linked quantization concepts to code)
 - **Notes:** First execution of the "Autonomic Ingestion" workflow via the inbox.
 
-## [2026-04-19] ingest | Mass Python Ingest (14 Modules)
+## [2026-04-20] ingest | Mass ML & Statistics Ingest (31 Modules)
 
 - **Sources ingested:**
-  - `raw/inbox/` — 14 files (oop, regex, scrape, basics, setup, image, jupyter, etc.)
-- **Wiki pages updated:**
-  - `wiki/python/python-basics.md` (synthesized from 4 source files)
-  - `wiki/python/python-oop.md` (full content replacement)
-  - `wiki/python/python-regex.md` (full content replacement)
-  - `wiki/python/python-web-scraping.md` (full content replacement)
-  - `wiki/python/python-file-io.md` (full content replacement)
-  - `wiki/python/python-email.md` (full content replacement)
-  - `wiki/python/python-images.md` (full content replacement)
-  - `wiki/python/python-jupyter.md` (full content replacement)
+  - `raw/inbox/` — 31 files covering Regression, Classification, Clustering, Deep Learning, Time Series, RL, ARL, and foundational Stats/Probability.
+- **Wiki pages updated (Synthesis of Theory + Code):**
+  - `wiki/ml/ml-regression.md`
+  - `wiki/ml/ml-classification.md`
+  - `wiki/ml/ml-clustering.md`
+  - `wiki/ml/ml-deep-learning.md`
+  - `wiki/ml/ml-dimensionality-reduction.md`
+  - `wiki/ml/ml-time-series.md`
+  - `wiki/ml/ml-time-series-forecasting.md`
+  - `wiki/ml/ml-reinforcement-learning.md`
+  - `wiki/concepts/statistics-basics.md`
+  - `wiki/concepts/statistics-for-ml.md`
+  - `wiki/concepts/probability.md`
 - **Wiki pages created:**
-  - `wiki/python/python-databases.md` (new entry for SQLite3)
-- **Notes:** Massive knowledge expansion phase. Placeholder stubs for Python have been upgraded to deep technical resources. Index updated and cross-linked.
+  - `wiki/ml/ml-arl.md`
+- **Notes:** Comprehensive technical overhaul. Stub placeholders for ML and Statistics have been replaced with full technical guides that synthesize statistical theory with Python/Scikit-Learn implementation code.
