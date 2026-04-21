@@ -99,5 +99,29 @@ class TestWikiEngine(unittest.TestCase):
         self.create_page("p2.md", "content")
         self.assertEqual(self.engine.count_files(self.wiki_dir), 2)
 
+    def test_last_updated_fallback(self):
+        # Create a file without last_updated
+        path = "no_date.md"
+        self.create_page(path, "---\ntitle: No Date\n---\nContent")
+        full_path = self.wiki_dir / path
+        
+        # Manually set mtime to a specific date for testing
+        import time
+        import datetime
+        test_time = time.mktime(datetime.datetime(2022, 1, 1).timetuple())
+        os.utime(full_path, (test_time, test_time))
+        
+        fm, _ = self.engine.parse_frontmatter(full_path.read_text(), file_path=str(full_path))
+        self.assertEqual(fm['last_updated'], "2022-01-01")
+
+    def test_explicit_date_parsing(self):
+        # Create a file with explicit last_updated
+        path = "explicit_date.md"
+        self.create_page(path, "---\ntitle: Explicit\nlast_updated: 2021-05-20\n---\nContent")
+        full_path = self.wiki_dir / path
+        
+        fm, _ = self.engine.parse_frontmatter(full_path.read_text(), file_path=str(full_path))
+        self.assertEqual(fm['last_updated'], "2021-05-20")
+
 if __name__ == '__main__':
     unittest.main()

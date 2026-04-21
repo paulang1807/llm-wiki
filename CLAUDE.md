@@ -111,6 +111,11 @@ When told to "ingest" a source file or folder (including `raw/inbox/`):
 ### 3. Log & Index
 1. Update `wiki/index.md` and `wiki/log.md`.
 
+### 4. Date Tagging (Historical Collection)
+1. **Explicit Date**: If a user specifies a date during ingestion (e.g., "Ingest with date 2023-01-01"), use that exact string for `last_updated` in the frontmatter.
+2. **Current Date**: If no date is specified, use the current system date in `YYYY-MM-DD` format.
+3. **Consistency**: Every wiki page MUST have a `last_updated` field to facilitate chronological sorting in the UI.
+
 ## Query Workflow
 
 When asked a question:

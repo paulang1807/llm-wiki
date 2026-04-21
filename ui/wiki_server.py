@@ -6,6 +6,8 @@ import re
 import urllib.parse
 import urllib.request
 import urllib.error
+import datetime
+import time
 from pathlib import Path
 
 PORT = 3737
@@ -38,29 +40,34 @@ class WikiEngine:
         self.wiki_dir = wiki_dir
         self.raw_dir = raw_dir
 
-    def parse_frontmatter(self, content):
+    def parse_frontmatter(self, content, file_path=None):
         match = re.match(r'^---\n(.*?)\n---\n?(.*)$', content, re.DOTALL)
         if not match:
-            return {}, content
+            fm = {}
+            body = content
+        else:
+            fm_text = match.group(1)
+            body = match.group(2)
+            fm = {}
+            for line in fm_text.split('\n'):
+                if ':' in line:
+                    key, val = line.split(':', 1)
+                    key = key.strip()
+                    val = val.strip()
+                    if val.startswith('[') and val.endswith(']'):
+                        val = [v.strip().strip('"').strip("'") for v in val[1:-1].split(',')]
+                    elif re.match(r'^\d+(\.\d+)?$', val):
+                        val = float(val) if '.' in val else int(val)
+                    elif val.lower() == 'true': val = True
+                    elif val.lower() == 'false': val = False
+                    else:
+                        val = val.strip('"').strip("'")
+                    fm[key] = val
         
-        fm_text = match.group(1)
-        body = match.group(2)
-        fm = {}
-        
-        for line in fm_text.split('\n'):
-            if ':' in line:
-                key, val = line.split(':', 1)
-                key = key.strip()
-                val = val.strip()
-                if val.startswith('[') and val.endswith(']'):
-                    val = [v.strip().strip('"').strip("'") for v in val[1:-1].split(',')]
-                elif re.match(r'^\d+(\.\d+)?$', val):
-                    val = float(val) if '.' in val else int(val)
-                elif val.lower() == 'true': val = True
-                elif val.lower() == 'false': val = False
-                else:
-                    val = val.strip('"').strip("'")
-                fm[key] = val
+        if 'last_updated' not in fm and file_path and os.path.exists(file_path):
+            mtime = os.path.getmtime(file_path)
+            fm['last_updated'] = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d')
+            
         return fm, body
 
     def walk_dir(self, directory, base_dir):
@@ -81,7 +88,7 @@ class WikiEngine:
                 title = entry.stem
                 try:
                     content = entry.read_text(encoding='utf-8')
-                    fm, _ = self.parse_frontmatter(content)
+                    fm, _ = self.parse_frontmatter(content, file_path=str(entry))
                     if 'title' in fm: title = fm['title']
                 except: pass
                 result.append({
@@ -101,7 +108,7 @@ class WikiEngine:
             elif entry.name.endswith('.md'):
                 try:
                     content = entry.read_text(encoding='utf-8')
-                    fm, body = self.parse_frontmatter(content)
+                    fm, body = self.parse_frontmatter(content, file_path=str(entry))
                     title = fm.get('title', entry.stem)
                     full_text = (body + ' ' + title).lower()
                     if query.lower() in full_text:
@@ -127,7 +134,7 @@ class WikiEngine:
             elif entry.name.endswith('.md'):
                 try:
                     content = entry.read_text(encoding='utf-8')
-                    fm, _ = self.parse_frontmatter(content)
+                    fm, _ = self.parse_frontmatter(content, file_path=str(entry))
                     title = fm.get('title', entry.stem)
                     rel_path = str(entry.relative_to(base_dir)).replace('\\', '/')
                     index[title] = rel_path
@@ -150,7 +157,7 @@ class WikiEngine:
                 if not entry.name.endswith('.md'): continue
                 try:
                     content = entry.read_text(encoding='utf-8')
-                    fm, _ = self.parse_frontmatter(content)
+                    fm, _ = self.parse_frontmatter(content, file_path=str(entry))
                     node_id = str(entry.relative_to(base_dir)).replace('\\', '/')
                     nodes.append({
                         "id": node_id,
@@ -180,7 +187,7 @@ class WikiEngine:
         for r in top_results:
             try:
                 content = (self.wiki_dir / r['path']).read_text(encoding='utf-8')
-                fm, body = self.parse_frontmatter(content)
+                fm, body = self.parse_frontmatter(content, file_path=str(self.wiki_dir / r['path']))
                 context_parts.append(f"PAGE: {r['title']}\nCATEGORY: {r['category']}\nCONTENT:\n{body}")
             except: pass
         return "\n\n---\n\n".join(context_parts), [r['title'] for r in top_results]
@@ -237,7 +244,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             
             try:
                 content = full_path.read_text(encoding='utf-8')
-                fm, body = ENGINE.parse_frontmatter(content)
+                fm, body = ENGINE.parse_frontmatter(content, file_path=str(full_path))
                 self.send_json({
                     "frontmatter": fm,
                     "body": body,

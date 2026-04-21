@@ -1,7 +1,7 @@
 ---
 title: "Wiki Index"
 category: meta
-last_updated: 2026-04-19
+last_updated: 2026-04-21
 ---
 
 # Wiki Index
@@ -63,7 +63,7 @@ Query tip: read this file first, then open only the relevant pages.
 
 | Page | Summary | Tags | Updated |
 |------|---------|------|---------|
-| *(Empty)* | *Dump notes into `raw/inbox/` to populate* | | 2026-04-19 |
+| [[Git Commit Reversion & History Manipulation]] | Procedures for undoing commits and forced pushes | git, os, history | 2021-10-30 |
 
 ---
 
