@@ -1,0 +1,9 @@
+[project]
+name = "llm-wiki"
+version = "0.1.0"
+description = "Self-Maintaining AI Knowledge Base"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pypdf>=6.10.2",
+]

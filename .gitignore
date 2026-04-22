@@ -7,3 +7,6 @@ __pycache__/
 # Raw source documents
 raw/
 archive/
+
+# Python Virtual Environment
+.venv/

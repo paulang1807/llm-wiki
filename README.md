@@ -32,15 +32,18 @@ A next-generation personal knowledge base covering **software engineering, cloud
 Create a `.env` file in the project root:
 ```bash
 GOOGLE_API_KEY=your_gemini_key
-# Optional:
-# OLLAMA_URL=http://localhost:11434
-# DEFAULT_MODEL=gemini-2.5-flash
 ```
 
 ### 2. Launch the Web UI
+Using **uv** (recommended):
 ```bash
-cd ui
-python3 wiki_server.py
+uv sync
+uv run python3 ui/wiki_server.py
+```
+
+Or using standard python:
+```bash
+python3 ui/wiki_server.py
 ```
 Access the dashboard at: [http://localhost:3737](http://localhost:3737)
 
