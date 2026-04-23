@@ -1,11 +1,28 @@
+# OS artifacts
 .DS_Store
 *.DS_Store
+
+# Python
 __pycache__/
 *.py[cod]
+
+# Environment / secrets
 .env
 
-# Raw source documents
-raw/
+# Raw source documents (user content — not checked in)
+# Ignore all files in raw/ but allow the directory stubs (.gitkeep files)
+raw/*
+!raw/.gitkeep
+!raw/inbox/
+raw/inbox/*
+!raw/inbox/.gitkeep
+
+# Ingested wiki content (AI-generated — not checked in)
+# Only the empty .gitkeep stub is tracked to preserve the directory
+wiki/*
+!wiki/.gitkeep
+
+# Archive (generated — not checked in)
 archive/
 
 # Python Virtual Environment
