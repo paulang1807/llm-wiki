@@ -63,6 +63,18 @@ body {
   font-weight: 700;
   font-size: 1.1rem;
   letter-spacing: -0.02em;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s, transform 0.15s;
+}
+
+.logo:hover {
+  opacity: 0.85;
+  transform: scale(1.02);
+}
+
+.logo:active {
+  transform: scale(0.97);
 }
 
 .logo-icon {

@@ -23,6 +23,7 @@ const state = {
 const elements = {
   wikiNav: document.getElementById('wikiNav'),
   pageView: document.getElementById('pageView'),
+  logo: document.getElementById('logo'),
   welcome: document.getElementById('welcome'),
   welcomeGrid: document.getElementById('welcomeGrid'),
   pageTitle: document.getElementById('pageTitle'),
@@ -505,6 +506,9 @@ function setupEventListeners() {
     elements.sidebar.style.display = elements.sidebar.style.display === 'none' ? 'block' : 'none';
   });
 
+  // Logo click → go home
+  elements.logo.addEventListener('click', goHome);
+
   elements.btnGraph.addEventListener('click', () => setView('graph'));
   
   // AI Chat
@@ -590,6 +594,30 @@ function setView(view) {
     loadGraph();
   }
 }
+
+function goHome() {
+  // Stop graph if running
+  if (graphSimulation) { cancelAnimationFrame(graphSimulation); graphSimulation = null; }
+  if (renderGraph._abort) { renderGraph._abort.abort(); renderGraph._abort = null; }
+
+  // Clear state
+  state.currentPage = null;
+  state.view = 'read';
+
+  // Update UI
+  elements.graphView.style.display = 'none';
+  elements.pageView.style.display = 'none';
+  elements.welcome.style.display = 'flex';
+
+  // Update button states
+  elements.btnRead.classList.add('active');
+  elements.btnGraph.classList.remove('active');
+
+  // Clear URL hash without triggering a page load
+  window.history.pushState({}, '', '/');
+}
+
+window.goHome = goHome;
 
 function renderSearchResults(results) {
   if (results.length === 0) {
