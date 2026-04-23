@@ -82,15 +82,24 @@ const elements = {
 // ── Initialization ───────────────────────────────────────────
 
 async function init() {
-  await Promise.all([
-    loadTree(),
-    loadIndex(),
-    loadStats()
-  ]);
+  console.log('LLM Wiki: Initializing...');
+  try {
+    // Load initial data in parallel, but with individual catch blocks to prevent total failure
+    await Promise.all([
+      loadTree().catch(e => console.error('Failed to load tree:', e)),
+      loadIndex().catch(e => console.error('Failed to load index:', e)),
+      loadStats().catch(e => console.error('Failed to load stats:', e))
+    ]);
 
-  setupEventListeners();
-  renderWelcomeGrid();
-  checkAIStatus();
+    setupEventListeners();
+    renderWelcomeGrid();
+    checkAIStatus();
+    console.log('LLM Wiki: Initialization complete.');
+  } catch (err) {
+    console.error('LLM Wiki: Critical initialization error:', err);
+    // Fallback: at least enable events so the UI isn't dead
+    setupEventListeners();
+  }
 
   // Load page from URL hash if present
   const hash = window.location.hash.slice(1);
@@ -282,131 +291,210 @@ function renderWelcomeGrid() {
 // ── Graph View ───────────────────────────────────────────────
 
 let graphSimulation = null;
+let graphListeners = []; // Track listeners so we can remove them on re-render
 
 async function loadGraph() {
   const res = await fetch('/api/graph');
-  state.graph = await res.json();
+  const data = await res.json();
+  // View Guard: If user switched away while fetching, don't render
+  if (state.view !== 'graph') return;
+  state.graph = data;
   renderGraph();
 }
 
 function renderGraph() {
-  const canvas = elements.graphCanvas;
-  const ctx = canvas.getContext('2d');
-  
-  // Set size
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = canvas.clientWidth * dpr;
-  canvas.height = canvas.clientHeight * dpr;
-  ctx.scale(dpr, dpr);
-
-  const nodes = state.graph.nodes.map(n => ({ ...n, x: Math.random() * canvas.clientWidth, y: Math.random() * canvas.clientHeight }));
-  const edges = state.graph.edges.map(e => ({
-    source: nodes.find(n => n.id === e.source),
-    target: nodes.find(n => n.id === e.target)
-  })).filter(e => e.source && e.target);
-
-  let transform = { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2, k: 1 };
-  let hoveredNode = null;
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.translate(transform.x, transform.y);
-    ctx.scale(transform.k, transform.k);
-
-    // Edges
-    ctx.strokeStyle = 'rgba(48, 54, 61, 0.5)';
-    ctx.lineWidth = 1;
-    edges.forEach(e => {
-      ctx.beginPath();
-      ctx.moveTo(e.source.x, e.source.y);
-      ctx.lineTo(e.target.x, e.target.y);
-      ctx.stroke();
-    });
-
-    // Nodes
-    nodes.forEach(n => {
-      ctx.fillStyle = getCategoryColor(n.category);
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      
-      if (transform.k > 0.8) {
-        ctx.fillStyle = n === hoveredNode ? '#fff' : 'rgba(230, 237, 243, 0.7)';
-        ctx.font = '10px Inter';
-        ctx.fillText(n.title, n.x + 10, n.y + 4);
-      }
-    });
-
-    ctx.restore();
+  // Stop any existing simulation
+  if (graphSimulation) {
+    cancelAnimationFrame(graphSimulation);
+    graphSimulation = null;
   }
 
-  // Animation loop (very simple physics)
-  function simulate() {
-    nodes.forEach(n => {
-      // Pull to center
-      n.x += (0 - n.x) * 0.01;
-      n.y += (0 - n.y) * 0.01;
-      
-      // Repulsion
-      nodes.forEach(other => {
-        if (n === other) return;
-        const dx = n.x - other.x;
-        const dy = n.y - other.y;
-        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-        if (dist < 150) {
-          const force = (150 - dist) / 1000;
-          n.x += dx * force;
-          n.y += dy * force;
+  // Use an AbortController so all listeners from this render can be removed
+  // cleanly when renderGraph is called again (no cloneNode shenanigans needed).
+  if (renderGraph._abort) renderGraph._abort.abort();
+  const abort = new AbortController();
+  renderGraph._abort = abort;
+  const sig = abort.signal;
+
+  const cvs = elements.graphCanvas;
+  const ctx = cvs.getContext('2d');
+
+  // Wait one frame so display:block has been applied and clientWidth is valid
+  requestAnimationFrame(() => {
+    if (state.view !== 'graph') return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const W = cvs.clientWidth || 800;
+    const H = cvs.clientHeight || 600;
+    cvs.width  = W * dpr;
+    cvs.height = H * dpr;
+    // Do NOT call ctx.scale(dpr, dpr) here — we handle DPR inside draw() instead
+
+    // Build node objects with initial positions spread around center
+    const nodes = (state.graph.nodes || []).map(n => ({
+      ...n,
+      x: (Math.random() - 0.5) * W * 0.5,
+      y: (Math.random() - 0.5) * H * 0.5
+    }));
+
+    // Resolve edges to node references
+    const edges = (state.graph.edges || []).map(e => ({
+      source: nodes.find(n => n.id === e.source),
+      target: nodes.find(n => n.id === e.target)
+    })).filter(e => e.source && e.target);
+
+    let transform = { x: W / 2, y: H / 2, k: 1 };
+    let hoveredNode = null;
+
+    // ── Draw ──────────────────────────────────────────────────
+    function draw() {
+      // Clear entire backing-store canvas (raw pixels)
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      // Fill background so canvas isn't transparent
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, cvs.width, cvs.height);
+      ctx.save();
+      // Scale for HiDPI then apply pan/zoom
+      ctx.scale(dpr, dpr);
+      ctx.translate(transform.x, transform.y);
+      ctx.scale(transform.k, transform.k);
+
+      // Edges
+      edges.forEach(e => {
+        const linked = hoveredNode && (e.source === hoveredNode || e.target === hoveredNode);
+        ctx.strokeStyle = linked ? '#58a6ff' : 'rgba(130,130,130,0.55)';
+        ctx.lineWidth   = linked ? 2 : 1.2;
+        ctx.beginPath();
+        ctx.moveTo(e.source.x, e.source.y);
+        ctx.lineTo(e.target.x, e.target.y);
+        ctx.stroke();
+
+        // Arrow head at 70% of edge
+        if (transform.k > 0.4) drawArrow(e.source, e.target, linked);
+      });
+
+      // Nodes
+      nodes.forEach(n => {
+        const isHovered = n === hoveredNode;
+        ctx.shadowBlur  = isHovered ? 14 : 0;
+        ctx.shadowColor = '#58a6ff';
+        ctx.fillStyle   = getCategoryColor(n.category);
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, isHovered ? 8 : 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur  = 0;
+
+        // Label
+        if (transform.k > 0.7 || isHovered) {
+          ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(220,228,236,0.8)';
+          ctx.font      = isHovered ? 'bold 11px Inter, sans-serif' : '10px Inter, sans-serif';
+          ctx.fillText(n.title, n.x + 10, n.y + 4);
         }
       });
-    });
-    
-    edges.forEach(e => {
-      const dx = e.target.x - e.source.x;
-      const dy = e.target.y - e.source.y;
-      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-      const force = (dist - 100) * 0.01;
-      e.source.x += dx * force;
-      e.source.y += dy * force;
-      e.target.x -= dx * force;
-      e.target.y -= dy * force;
-    });
 
-    draw();
-    graphSimulation = requestAnimationFrame(simulate);
-  }
-
-  simulate();
-
-  // Mouse interactivity
-  canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left - transform.x) / transform.k;
-    const my = (e.clientY - rect.top - transform.y) / transform.k;
-    
-    hoveredNode = nodes.find(n => {
-      const dx = n.x - mx;
-      const dy = n.y - my;
-      return Math.sqrt(dx*dx + dy*dy) < 10;
-    });
-    
-    canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
-  });
-
-  canvas.addEventListener('click', () => {
-    if (hoveredNode) {
-      cancelAnimationFrame(graphSimulation);
-      loadPage(hoveredNode.id);
+      ctx.restore();
     }
-  });
 
-  // Pan and zoom
-  canvas.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const scaleFactor = 1.05;
-    if (e.deltaY < 0) transform.k *= scaleFactor;
-    else transform.k /= scaleFactor;
+    function drawArrow(src, tgt, highlighted) {
+      const dx   = tgt.x - src.x;
+      const dy   = tgt.y - src.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 30) return;
+      const angle = Math.atan2(dy, dx);
+      const hl    = 8;
+      const ax    = src.x + dx * 0.7;
+      const ay    = src.y + dy * 0.7;
+      ctx.strokeStyle = highlighted ? '#58a6ff' : 'rgba(130,130,130,0.55)';
+      ctx.lineWidth   = highlighted ? 1.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - hl * Math.cos(angle - Math.PI / 6), ay - hl * Math.sin(angle - Math.PI / 6));
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - hl * Math.cos(angle + Math.PI / 6), ay - hl * Math.sin(angle + Math.PI / 6));
+      ctx.stroke();
+    }
+
+    // ── Physics ───────────────────────────────────────────────
+    function simulate() {
+      nodes.forEach(n => {
+        if (!isFinite(n.x)) n.x = 0;
+        if (!isFinite(n.y)) n.y = 0;
+
+        // Gravity toward center
+        n.x += (0 - n.x) * 0.008;
+        n.y += (0 - n.y) * 0.008;
+
+        // Node repulsion
+        nodes.forEach(m => {
+          if (m === n) return;
+          const dx   = n.x - m.x;
+          const dy   = n.y - m.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+          if (dist < 160) {
+            const f = (160 - dist) / 1200;
+            n.x += dx * f;
+            n.y += dy * f;
+          }
+        });
+      });
+
+      // Edge spring attraction
+      edges.forEach(e => {
+        const dx   = e.target.x - e.source.x;
+        const dy   = e.target.y - e.source.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+        const f    = (dist - 120) * 0.008;
+        e.source.x += dx * f;
+        e.source.y += dy * f;
+        e.target.x -= dx * f;
+        e.target.y -= dy * f;
+      });
+
+      draw();
+      graphSimulation = requestAnimationFrame(simulate);
+    }
+
+    // ── Event Listeners ───────────────────────────────────────
+    cvs.addEventListener('mousemove', e => {
+      const rect = cvs.getBoundingClientRect();
+      const mx   = (e.clientX - rect.left  - transform.x) / transform.k;
+      const my   = (e.clientY - rect.top   - transform.y) / transform.k;
+      hoveredNode = nodes.find(n => {
+        const dx = n.x - mx, dy = n.y - my;
+        return Math.sqrt(dx * dx + dy * dy) < 10;
+      }) || null;
+      cvs.style.cursor = hoveredNode ? 'pointer' : 'grab';
+    }, { signal: sig });
+
+    cvs.addEventListener('click', () => {
+      if (hoveredNode) {
+        cancelAnimationFrame(graphSimulation);
+        graphSimulation = null;
+        setView('read');
+        loadPage(hoveredNode.id);
+      }
+    }, { signal: sig });
+
+    cvs.addEventListener('wheel', e => {
+      e.preventDefault();
+      transform.k *= e.deltaY < 0 ? 1.08 : 0.93;
+    }, { passive: false, signal: sig });
+
+    let drag = null;
+    cvs.addEventListener('mousedown', e => {
+      drag = { startX: e.clientX - transform.x, startY: e.clientY - transform.y };
+      cvs.style.cursor = 'grabbing';
+    }, { signal: sig });
+    cvs.addEventListener('mousemove', e => {
+      if (!drag) return;
+      transform.x = e.clientX - drag.startX;
+      transform.y = e.clientY - drag.startY;
+    }, { signal: sig });
+    cvs.addEventListener('mouseup',    () => { drag = null; cvs.style.cursor = 'grab'; }, { signal: sig });
+    cvs.addEventListener('mouseleave', () => { drag = null; }, { signal: sig });
+
+    // Start simulation
+    simulate();
   });
 }
 
@@ -493,7 +581,8 @@ function setView(view) {
     elements.graphView.style.display = 'none';
     elements.pageView.style.display = state.currentPage ? 'block' : 'none';
     elements.welcome.style.display = state.currentPage ? 'none' : 'flex';
-    if (graphSimulation) cancelAnimationFrame(graphSimulation);
+    if (graphSimulation) { cancelAnimationFrame(graphSimulation); graphSimulation = null; }
+    if (renderGraph._abort) { renderGraph._abort.abort(); renderGraph._abort = null; }
   } else {
     elements.graphView.style.display = 'block';
     elements.pageView.style.display = 'none';
@@ -534,12 +623,14 @@ function getCategoryEmoji(title) {
 }
 
 function getCategoryColor(cat) {
-  switch (cat) {
-    case 'python': return '#3776ab';
-    case 'ml': return '#d29922';
-    case 'genai': return '#58a6ff';
-    case 'concepts': return '#8b949e';
-    default: return '#30363d';
+  switch ((cat || '').toLowerCase()) {
+    case 'python':   return '#3b8fd4';  // blue
+    case 'ml':       return '#e3b341';  // amber
+    case 'genai':    return '#58a6ff';  // bright blue
+    case 'concepts': return '#a371f7';  // purple
+    case 'os':       return '#3fb950';  // green
+    case 'meta':     return '#f78166';  // coral/red
+    default:         return '#79c0ff';  // light blue fallback
   }
 }
 

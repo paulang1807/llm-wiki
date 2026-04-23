@@ -172,14 +172,39 @@ class WikiEngine:
                         "confidence": fm.get('confidence', 0.8),
                         "stale": fm.get('stale', False)
                     })
-                    wikilinks = re.findall(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]', content)
-                    for target_title in wikilinks:
-                        target_path = index.get(target_title) or index.get(target_title.lower())
+                    # Extract targets from multiple sources
+                    targets = []
+                    # 1. Wikilinks [[Page]] or [[Page|Text]]
+                    targets.extend(re.findall(r'\[\[([^\]|]+)(?:\|[^\]]+)?\]\]', content))
+                    
+                    # 2. Standard Markdown links [Text](path.md)
+                    targets.extend(re.findall(r'\[[^\]]+\]\(([^)]+\.md)\)', content))
+                    
+                    # 3. Frontmatter 'related' field
+                    fm_related = fm.get('related', [])
+                    if isinstance(fm_related, str): fm_related = [fm_related]
+                    targets.extend([t.strip('[]') for t in fm_related if isinstance(t, str)])
+                    
+                    for target_val in set(targets):
+                        target_path = index.get(target_val) or index.get(target_val.lower())
+                        # Fallback: check if it's already a partial path
+                        if not target_path and target_val.endswith('.md'):
+                            for path in index.values():
+                                if path.endswith(target_val):
+                                    target_path = path
                         if target_path and target_path != node_id:
                             edges.append({"source": node_id, "target": target_path})
-                except: pass
+                except Exception: pass
         walk(directory)
-        return {"nodes": nodes, "edges": list({(e['source'], e['target']) for e in edges})}
+        # Deduplicate and format as objects for the frontend
+        unique_edges = []
+        seen = set()
+        for e in edges:
+            pair = (e['source'], e['target'])
+            if pair not in seen:
+                unique_edges.append(e)
+                seen.add(pair)
+        return {"nodes": nodes, "edges": unique_edges}
 
     def count_files(self, directory):
         if not directory.exists(): return 0
