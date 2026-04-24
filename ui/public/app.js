@@ -145,6 +145,20 @@ async function loadStats() {
   elements.statsText.textContent = `${stats.wikiPages} pages`;
 }
 
+async function refreshUI() {
+  try {
+    await Promise.all([
+      loadTree(),
+      loadIndex(),
+      loadStats(),
+      renderWelcomeGrid(),
+      loadIngestView()
+    ]);
+  } catch (err) {
+    console.error('Refresh UI failed:', err);
+  }
+}
+
 async function loadPage(path, pushState = true) {
   try {
     const res = await fetch(`/api/page?path=${encodeURIComponent(path)}`);
@@ -761,7 +775,7 @@ async function savePage() {
     setEditMode(false);
     
     // Refresh UI
-    await Promise.all([loadTree(), loadIndex(), loadStats()]);
+    await refreshUI();
     loadPage(resData.path || path);
     
   } catch (err) {
@@ -870,12 +884,7 @@ async function loadIngestView() {
     result.style.display = 'none';
     await ingestInbox();
     // Refresh UI after a small delay to ensure backend has settled
-    setTimeout(async () => {
-      await loadTree();
-      await loadIngestView();
-      await loadStats();
-      await loadIndex();
-    }, 500);
+    setTimeout(refreshUI, 500);
   };
 }
 
@@ -986,7 +995,7 @@ async function ingestInbox() {
 
     if (finalResult && finalResult.processed > 0) {
       showToast(`Successfully ingested ${finalResult.processed} note(s)!`);
-      await Promise.all([loadTree(), loadIndex(), loadStats()]);
+      setTimeout(refreshUI, 500);
     } else if (finalResult && finalResult.total_in_inbox === 0) {
       showToast('Inbox is empty.');
     }

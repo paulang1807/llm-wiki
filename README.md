@@ -2,27 +2,28 @@
 
 A next-generation personal knowledge base covering **software engineering, cloud infrastructure, data science, machine learning, and AI**. Built on the principle of **Automated Ingestion and Human Curation**.
 
-![LLM Wiki UI Overview](./assets/wiki_ui_overview.webp)
+![LLM Wiki UI Overview](./assets/wiki_ui_overview.png)
 
 ## ✨ Core Features
 
 - **🧠 "Ask the Wiki" (RAG)**: A built-in AI assistant that performs semantic search over your notes and responds using context-aware Retrieval Augmented Generation.
-- **🚀 Autonomic Ingestion**: Simply drop notes into the inbox (supports **Markdown, PDF, Text, HTML**); the AI autonomously classifies, archives, and cross-links them into the wiki.
+- **🚀 Autonomic Ingestion**: Drop notes into the inbox (supports **Markdown, PDF, Text, HTML, RTF**); the AI autonomously determines a **Domain** and **Subdomain** for each note.
+- **📁 Dynamic Hierarchy**: No more static categories. The wiki automatically organizes itself into a two-level domain/subdomain hierarchy based on your actual content.
 - **🌐 Interactive Graph**: Visualize connections between knowledge domains with a real-time BFS/DFS graph explorer.
-- **🔍 Global Instant Search**: Millisecond-fast search across all categories and raw sources.
+- **🔍 Global Instant Search**: Millisecond-fast search across all domains and raw sources.
 - **🎨 Premium Aesthetics**: Glassmorphic UI with dark mode support, fluid animations, and a modern design system.
 
 ---
 
 ## 🏗️ Architecture
 
-- **Backend**: Zero-external-dependency Python server (`http.server` + `urllib`).
+- **Backend**: Zero-external-dependency, multi-threaded Python server (`http.server` + `urllib`).
 - **AI Engine**: Multi-provider support for **Google Gemini** (default) and **Ollama** (offline fallback).
 - **Frontend**: Vanilla JavaScript and CSS transitions for a lightweight, high-performance experience.
 - **Structure**:
     - `raw/`: Immutable source documents (LLM read-only).
-    - `wiki/`: AI-generated and maintained summaries.
-    - `tests/`: 25+ automated unit tests covering RAG, API, and core logic.
+    - `wiki/`: AI-generated and maintained summaries, organized by domain/subdomain.
+    - `tests/`: 90+ automated unit tests covering RAG, API, ingestion, and domain hierarchy.
 
 ---
 
@@ -60,10 +61,52 @@ python3 -m unittest discover tests
 This project follows a streamlined ingestion workflow:
 
 1.  **COLLECT**: Drop any note (**Markdown, Text, HTML, RTF**) into `raw/inbox/`.
-2.  **PROCESS**: Tell your LLM developer (Antigravity): `Ingest inbox`. 
-    - *Tip: For historical notes, you can specify a date: `Ingest inbox with date 2022-01-01`.*
+2.  **PROCESS**: Click **Process Inbox** in the browser or tell your LLM assistant to ingest the notes.
 3.  **MANAGE**: Use the **`+` (New Page)** button in the sidebar or the **Edit** button on any page to update your wiki directly from the browser.
 4.  **QUERY**: Use the built-in "Ask AI" drawer to query your entire knowledge base in natural language.
+
+---
+
+## 🛠️ Customizing Ingestion
+
+You can override the AI's default categorization by adding hints to the first few lines of your raw notes:
+
+### 1. Domain & Subdomain Overrides (Pre-Ingestion)
+Add simple text hints or a YAML frontmatter block to the top of your raw file before processing:
+```markdown
+# Domain: Engineering
+# Subdomain: Backend
+This note will be automatically placed in the Engineering/Backend folder.
+```
+
+### 2. Relocating Existing Pages (Post-Ingestion)
+You can also relocate a page after it has been ingested. Open any wiki page in the browser, click **Edit**, and modify the `domain` or `subdomain` in the YAML frontmatter:
+```yaml
+---
+title: My Page
+domain: New Domain
+subdomain: New Subdomain
+---
+```
+When you click **Save Changes**, the wiki will automatically move the file to the new directory and update your sidebar and domain tiles instantly.
+
+### 3. Historical Ingest Date
+By default, the wiki uses the current date. You can override this by adding a hint to your raw note:
+```markdown
+# Date: 2021-12-25
+This note will be recorded with a historical date.
+```
+Or use YAML frontmatter:
+```yaml
+---
+last_updated: 2021-12-25
+---
+```
+
+You can also specify a date for a batch of notes via the natural language command:
+> *"Ingest inbox with date 2022-05-15"*
+
+This is useful for maintaining an accurate timeline when importing older collections.
 
 ---
 

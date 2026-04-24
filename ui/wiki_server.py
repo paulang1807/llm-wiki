@@ -647,6 +647,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         raw_fm, _ = ENGINE.parse_frontmatter(content)
         domain = raw_fm.get('domain')
         subdomain = raw_fm.get('subdomain')
+        last_updated = raw_fm.get('last_updated')
         
         # If not in frontmatter, look for line-based hints
         if not domain:
@@ -655,11 +656,21 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         if not subdomain:
             s_match = re.search(r'(?:^|\n)(?:#\s*)?Subdomain:\s*(.*)', content, re.IGNORECASE)
             if s_match: subdomain = s_match.group(1).strip()
+        if not last_updated:
+            date_match = re.search(r'(?:^|\n)(?:#\s*)?Date:\s*(\d{4}-\d{2}-\d{2})', content, re.IGNORECASE)
+            if date_match: last_updated = date_match.group(1).strip()
             
         # Fallbacks to AI response
         domain = domain or fm.get('domain') or fm.get('category', 'General')
         subdomain = subdomain or fm.get('subdomain', 'General')
         title = fm.get('title', file_path.stem)
+        
+        # Merge overrides into synthesized frontmatter
+        if domain: fm['domain'] = domain
+        if subdomain: fm['subdomain'] = subdomain
+        if last_updated: fm['last_updated'] = last_updated
+        elif 'last_updated' not in fm:
+            fm['last_updated'] = datetime.datetime.now().strftime('%Y-%m-%d')
         
         # Sanitize parts
         def clean(s): return re.sub(r'[^a-zA-Z0-9\s\-]', '', str(s)).strip()
@@ -678,10 +689,17 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             log(f"AI ERROR: {ans[:100]}...", "error")
             return None
 
+        # Re-serialize to include overrides
+        _, body = ENGINE.parse_frontmatter(ans)
+        final_content = "---\n"
+        for k, v in fm.items():
+            final_content += f"{k}: {v}\n"
+        final_content += "---\n" + body
+
         # Write to Wiki
         log(f"Saving to {domain}/{subdomain}/{filename}...")
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_text(ans, encoding='utf-8')
+        dest_path.write_text(final_content, encoding='utf-8')
         
         # Move raw source to raw/ instead of deleting
         raw_dest = RAW_DIR / file_path.name
