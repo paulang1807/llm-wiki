@@ -938,6 +938,49 @@ async function loadIngestView() {
     elements.ingestPasteTitle.value = '';
     elements.ingestPasteDate.value = '';
   };
+
+  // ── Link ingestion button ────────────────────────────────────
+  const btnSaveLink = document.getElementById('btnSaveLink');
+  const btnCancelLink = document.getElementById('btnCancelLink');
+  const ingestLinkUrl = document.getElementById('ingestLinkUrl');
+  const ingestLinkDate = document.getElementById('ingestLinkDate');
+
+  btnSaveLink.onclick = async () => {
+    const url = ingestLinkUrl.value.trim();
+    const date = ingestLinkDate.value;
+    if (!url) return;
+
+    btnSaveLink.disabled = true;
+    btnSaveLink.textContent = 'Fetching...';
+
+    try {
+      const res = await fetch('/api/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, date, ingestImmediate: true })
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to ingest link');
+
+      ingestLinkUrl.value = '';
+      ingestLinkDate.value = '';
+      showToast('Link ingested successfully');
+      
+      await loadIngestView();
+      await refreshUI();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      btnSaveLink.disabled = false;
+      btnSaveLink.textContent = 'Ingest Link';
+    }
+  };
+
+  btnCancelLink.onclick = () => {
+    ingestLinkUrl.value = '';
+    ingestLinkDate.value = '';
+  };
 }
 
 // ── Tab Switching ──────────────────────────────────────────
@@ -951,9 +994,12 @@ function switchIngestTab(tab) {
   if (tab === 'upload') {
     document.getElementById('tabUpload').classList.add('active');
     document.getElementById('contentUpload').classList.add('active');
-  } else {
+  } else if (tab === 'paste') {
     document.getElementById('tabPaste').classList.add('active');
     document.getElementById('contentPaste').classList.add('active');
+  } else if (tab === 'link') {
+    document.getElementById('tabLink').classList.add('active');
+    document.getElementById('contentLink').classList.add('active');
   }
 }
 

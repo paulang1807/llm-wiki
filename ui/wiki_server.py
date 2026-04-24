@@ -280,6 +280,11 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data)
             self.handle_paste(data)
+        elif url.path == '/api/link':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_link(data)
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -498,6 +503,66 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self.send_error(500, f"Paste failed: {str(e)}")
 
+    def handle_link(self, data):
+        url = data.get('url', '')
+        date = data.get('date', '')
+        ingest_immediate = data.get('ingestImmediate', False)
+        
+        if not url:
+            self.send_error(400, "URL required")
+            return
+            
+        try:
+            # 1. Fetch content
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (LLM-Wiki-Ingestor)'})
+            with urllib.request.urlopen(req, timeout=15) as res:
+                html = res.read().decode('utf-8', errors='ignore')
+            
+            # 2. Simple cleaning (strip script/style tags)
+            title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+            title = title_match.group(1).strip() if title_match else "Linked Content"
+            
+            # Remove scripts, styles, and other noise
+            cleaned = re.sub(r'<(script|style|nav|header|footer)[^>]*>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            # Strip remaining tags
+            text_content = re.sub(r'<[^>]+>', ' ', cleaned)
+            # Normalize whitespace
+            text_content = re.sub(r'\s+', ' ', text_content).strip()
+            
+            # 3. Save to inbox
+            inbox = RAW_DIR / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
+            
+            header = "---\n"
+            header += f"title: {title}\n"
+            header += f"source_url: {url}\n"
+            header += f"date: {date or datetime.datetime.now().strftime('%Y-%m-%d')}\n"
+            header += "---\n"
+            
+            full_content = header + text_content
+            
+            # Generated unique filename
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_title = re.sub(r'[^a-z0-9\-]', '', title.lower().replace(' ', '-'))[:30]
+            if not safe_title: safe_title = "link"
+            filename = f"link_{safe_title}_{timestamp}.md"
+            
+            file_path = inbox / filename
+            file_path.write_text(full_content, encoding='utf-8')
+            
+            result = {"status": "saved", "filename": filename}
+            
+            if ingest_immediate:
+                ingest_res = self.ingest_one_file(file_path)
+                if ingest_res:
+                    result["status"] = "ingested"
+                    result["wiki_path"] = ingest_res["path"]
+                    result["title"] = ingest_res["title"]
+            
+            self.send_json(result)
+        except Exception as e:
+            self.send_error(500, f"Link ingestion failed: {str(e)}")
+
     def extract_text_from_pdf(self, file_path):
         try:
             reader = pypdf.PdfReader(str(file_path))
@@ -672,7 +737,8 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             "- tags: List of relevant keywords\n"
             "- confidence: float 0.0 to 1.0\n"
             "- related: List of [[Wiki Link]] to related pages if any\n"
-            "- sources: List of source filenames\n\n"
+            "- sources: List of source filenames\n"
+            "- source_url: Original URL if from a link\n\n"
             "If the note contains a '# Domain: ...' or '# Subdomain: ...' hint, prioritize those values.\n\n"
             "EXAMPLE OUTPUT:\n"
             "---\ntitle: Git Basics\ndomain: Engineering\nsubdomain: Version Control\ntags: [git, version control]\nconfidence: 1.0\n---\n# Git Basics\n..."
@@ -697,6 +763,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         domain = raw_fm.get('domain')
         subdomain = raw_fm.get('subdomain')
         last_updated = raw_fm.get('last_updated')
+        source_url = raw_fm.get('source_url')
         
         # If not in frontmatter, look for line-based hints
         if not domain:
@@ -718,6 +785,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         if domain: fm['domain'] = domain
         if subdomain: fm['subdomain'] = subdomain
         if last_updated: fm['last_updated'] = last_updated
+        if source_url: fm['source_url'] = source_url
         elif 'last_updated' not in fm:
             fm['last_updated'] = datetime.datetime.now().strftime('%Y-%m-%d')
         

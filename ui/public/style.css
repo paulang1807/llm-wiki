@@ -15,6 +15,7 @@
   --font-mono: 'JetBrains Mono', monospace;
   --radius: 8px;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
 }
 
 * {
@@ -1341,21 +1342,7 @@ kbd {
   margin-bottom: 30px;
 }
 
-.modern-file-btn {
-  background: var(--text-main);
-  color: var(--bg-dark);
-  padding: 12px 24px;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
 
-.modern-file-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
-}
 
 /* ── Modern Paste Card ────────────────────────────────────── */
 
@@ -1366,21 +1353,67 @@ kbd {
   overflow: hidden;
 }
 
-.paste-field {
+.modern-field {
   padding: 15px 25px;
-  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 12px;
+  border-bottom: 1px solid var(--border);
+  transition: all 0.2s;
 }
 
-.paste-field input {
+.modern-field.top-border {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+
+.modern-field.date-field {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.modern-field svg {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.modern-field.link-field svg {
+  color: var(--accent);
+}
+
+.modern-field input {
   background: transparent;
   border: none;
   color: var(--text-main);
   font-size: 1rem;
   width: 100%;
   outline: none;
+}
+
+.modern-field input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.modern-field.date-field input {
+  color: var(--text-main);
+  font-size: 1rem;
+}
+
+.modern-field:focus-within {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.modern-field input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.8);
+  opacity: 0.5;
+  transition: all 0.2s;
+  margin-left: 10px;
+}
+
+.modern-field input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.1);
 }
 
 .paste-body textarea {
@@ -1427,33 +1460,76 @@ kbd {
   gap: 15px;
 }
 
-.btn-premium {
+/* ── Modern Buttons ────────────────────────────────────────── */
+
+.modern-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  white-space: nowrap;
+}
+
+.modern-btn-primary {
   background: linear-gradient(135deg, var(--accent) 0%, #0044cc 100%);
   color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 15px rgba(0, 102, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 122, 255, 0.2);
 }
 
-.btn-premium:hover {
+.modern-btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 102, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+  filter: brightness(1.1);
 }
 
-.btn-ghost {
-  background: transparent;
+.modern-btn-primary:active {
+  transform: translateY(0);
+}
+
+.modern-btn-ghost {
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-dim);
-  border: none;
-  padding: 10px 20px;
-  cursor: pointer;
-  font-weight: 600;
+  border: 1px solid var(--border);
 }
 
-.btn-ghost:hover { color: var(--text-main); }
+.modern-btn-ghost:hover {
+  background: var(--border);
+  color: var(--text-main);
+  border-color: var(--text-dim);
+}
+
+.modern-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+
+/* ── Modern Link Card ────────────────────────────────────── */
+
+.modern-link-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.link-field {
+  padding: 25px !important;
+}
+
+.link-field input {
+  font-size: 1.1rem !important;
+}
+
+
 
 /* ── Ingest Queue Section ────────────────────────────────── */
 
