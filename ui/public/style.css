@@ -1179,3 +1179,270 @@ kbd {
   to { transform: rotate(360deg); }
 }
 
+/* ── Dedicated Ingest View ───────────────────────────────── */
+
+.ingest-view {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 40px;
+}
+
+.ingest-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+@media (max-width: 800px) {
+  .ingest-layout { grid-template-columns: 1fr; }
+}
+
+.ingest-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ingest-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+/* ── Drop Zone ───────────────────────────────────────────── */
+
+.ingest-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ingest-drop-zone:hover,
+.ingest-drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(88, 166, 255, 0.06);
+  transform: scale(1.01);
+}
+
+.ingest-drop-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 4px;
+  transition: transform 0.2s;
+}
+
+.ingest-drop-zone.drag-over .ingest-drop-icon {
+  transform: scale(1.2) translateY(-4px);
+}
+
+.ingest-drop-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ingest-drop-sub {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.ingest-drop-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 60%;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+.ingest-drop-divider::before,
+.ingest-drop-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.ingest-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+}
+
+.ingest-file-btn:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+/* ── Upload list ─────────────────────────────────────────── */
+
+.ingest-upload-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ingest-upload-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.ingest-uploading  { color: var(--text-dim); font-size: 0.78rem; }
+.ingest-upload-ok  { color: #3fb950; font-size: 0.78rem; }
+.ingest-upload-err { color: #f85149; font-size: 0.78rem; }
+
+/* ── Inbox file list ─────────────────────────────────────── */
+
+.ingest-inbox-desc {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.ingest-inbox-desc code {
+  background: var(--bg-dark);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.ingest-file-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+}
+
+.ingest-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  transition: border-color 0.2s;
+}
+
+.ingest-file-item:hover { border-color: var(--accent); }
+
+.ingest-file-icon { font-size: 1.1rem; flex-shrink: 0; }
+.ingest-file-name { flex: 1; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ingest-file-size { color: var(--text-dim); font-size: 0.75rem; flex-shrink: 0; }
+
+.ingest-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  padding: 32px 16px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Process button ──────────────────────────────────────── */
+
+.ingest-actions {
+  padding-top: 4px;
+}
+
+.ingest-process-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 13px 24px;
+  background: linear-gradient(135deg, #238636, #2ea043);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 2px 12px rgba(35, 134, 54, 0.35);
+}
+
+.ingest-process-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(35, 134, 54, 0.45);
+}
+
+.ingest-process-btn:active { transform: translateY(0); }
+.ingest-process-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.ingest-result {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ingest-result.success { background: rgba(63, 185, 80, 0.12); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.3); }
+.ingest-result.error   { background: rgba(248, 81, 73, 0.12); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.3); }
+
+/* ── Ingest Log Console ──────────────────────────────────── */
+
+.ingest-log {
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
+  font-size: 0.82rem;
+  color: #8b949e;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-top: 16px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.log-entry { margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 2px; }
+.log-entry.info    { color: var(--accent); }
+.log-entry.success { color: #3fb950; font-weight: 600; }
+.log-entry.error   { color: #f85149; }
+.log-entry.step    { color: #d1d5db; padding-left: 12px; }
+
+

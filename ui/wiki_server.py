@@ -114,19 +114,31 @@ class WikiEngine:
                     content = entry.read_text(encoding='utf-8')
                     fm, body = self.parse_frontmatter(content, file_path=str(entry))
                     if fm.get('stale'): continue # Skip stale files in search
+                    entry_path = str(entry.relative_to(base_dir)).replace('\\', '/')
                     title = fm.get('title', entry.stem)
                     full_text = (body + ' ' + title).lower()
-                    if query.lower() in full_text:
-                        idx = full_text.find(query.lower())
+                    query_terms = [t.lower() for t in query.split() if len(t) > 2]
+                    if not query_terms: # fallback for very short queries
+                        query_terms = [query.lower()]
+                    
+                    matches = 0
+                    for term in query_terms:
+                        if term in full_text:
+                            matches += 1
+                    
+                    if matches > 0:
+                        # Extract snippet from body
+                        body_lower = body.lower()
+                        idx = body_lower.find(query_terms[0]) if query_terms[0] in body_lower else 0
                         start = max(0, idx - 80)
-                        end = min(len(full_text), idx + 120)
-                        snippet = ("..." if start > 0 else "") + body[start:end].replace('\n', ' ') + ("..." if end < len(body) else "")
+                        end = min(len(body), idx + 120)
+                        snippet = body[start:end].replace('\n', ' ')
                         results.append({
-                            "path": str(entry.relative_to(base_dir)).replace('\\', '/'),
+                            "path": entry_path,
                             "title": title,
                             "category": fm.get('category', ''),
                             "snippet": snippet.strip(),
-                            "confidence": fm.get('confidence', 0)
+                            "confidence": fm.get('confidence', 0.5) * (matches / len(query_terms))
                         })
                 except: pass
 
@@ -326,6 +338,15 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                 "geminiReady": bool(CONFIG["gemini_key"]),
                 "defaultProvider": "gemini" if CONFIG["gemini_key"] else "ollama"
             })
+        elif url.path == '/api/inbox-files':
+            inbox = RAW_DIR / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
+            files = [
+                {"name": f.name, "size": f.stat().st_size}
+                for f in sorted(inbox.iterdir())
+                if f.is_file() and not f.name.startswith('.')
+            ]
+            self.send_json(files)
         else:
             self.send_error(404, "API endpoint not found")
 
@@ -333,6 +354,9 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         try:
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(data).encode('utf-8'))
@@ -443,24 +467,65 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"processed": 0, "status": "Inbox empty"})
             return
             
-        processed = []
-        for f in files:
-            try:
-                result = self.ingest_one_file(f)
-                processed.append(result)
-            except Exception as e:
-                print(f"Error ingesting {f.name}: {e}")
-                
-        self.send_json({"processed": len(processed), "items": processed})
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('Connection', 'keep-alive')
+        self.end_headers()
 
-    def ingest_one_file(self, file_path):
+        def stream_log(msg, type="info", final=None):
+            data = {"message": msg, "type": type}
+            if final:
+                data.update(final)
+                data["FINAL_RESULT"] = True
+            self.wfile.write((json.dumps(data) + "\n").encode('utf-8'))
+            self.wfile.flush()
+
+        # Limit to 5 files per sync to avoid timeouts
+        files_to_process = files[:5]
+        stream_log(f"Starting ingestion process for {len(files_to_process)} note(s)...", "info")
+        
+        processed_count = 0
+        for f in files_to_process:
+            if not f.exists():
+                stream_log(f"File {f.name} missing, skipping.", "error")
+                continue
+            try:
+                stream_log(f"--- Ingesting: {f.name} ---", "info")
+                result = self.ingest_one_file(f, log_fn=stream_log)
+                if result:
+                    processed_count += 1
+                    stream_log(f"Successfully processed {f.name} as '{result['title']}'", "success")
+                else:
+                    stream_log(f"Failed to ingest {f.name}. AI call may have failed.", "error")
+            except Exception as e:
+                stream_log(f"Unexpected error with {f.name}: {str(e)}", "error")
+                
+        import time
+        time.sleep(0.2) # Give OS a moment to settle file moves
+        stream_log(f"\nDONE: Processed {processed_count} files. {len(files) - processed_count} remain in inbox.", "success", 
+                   final={"processed": processed_count, "total_in_inbox": len(files)})
+
+    def ingest_one_file(self, file_path, log_fn=None):
+        def log(msg, type="step"):
+            if log_fn: log_fn(msg, type)
+            else: print(f"DEBUG: {msg}")
+
         if file_path.suffix.lower() == '.pdf':
+            log(f"Extracting text from PDF...")
             content = self.extract_text_from_pdf(file_path)
             if not content.strip():
                 content = f"Note: PDF extraction returned no text for {file_path.name}. Detailed analysis may be required."
         else:
+            log(f"Reading text file content...")
             content = file_path.read_text(encoding='utf-8', errors='ignore')
         
+        # Truncate content if extremely large to prevent AI timeout
+        if len(content) > 50000:
+            log(f"Content very large ({len(content)} chars), truncating to 50k...")
+            content = content[:50000] + "... [TRUNCATED]"
+
+        # ... (rest of system prompt is the same)
         system_prompt = (
             "You are the LLM Wiki Ingestion AI. Your task is to categorize and synthesize a raw note into a high-quality wiki page.\n"
             "Respond ONLY with a valid Markdown file containing YAML frontmatter and a clean, technical summary of the note.\n\n"
@@ -479,6 +544,8 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         
         # Use provider based on readiness
         provider = "gemini" if CONFIG["gemini_key"] else "ollama"
+        log(f"Synthesizing wiki page using {provider}...")
+        
         if provider == 'gemini':
             ans = self.call_gemini(system_prompt, user_prompt, CONFIG["gemini_key"], CONFIG["default_model"])
         else:
@@ -488,13 +555,20 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         fm, _ = ENGINE.parse_frontmatter(ans)
         title = fm.get('title', file_path.stem)
         category = fm.get('category', 'meta')
+        
         # Sanitize filename
         safe_name = re.sub(r'[^a-z0-9\-]', '', title.lower().replace(' ', '-'))
         if not safe_name: safe_name = "untitled"
         filename = safe_name + ".md"
         dest_path = WIKI_DIR / category / filename
         
+        # Write to Wiki only if not an error message
+        if ans.strip().startswith("Error") or ans.strip().startswith("Gemini API Error") or ans.strip().startswith("Ollama Error"):
+            log(f"AI ERROR: {ans[:100]}...", "error")
+            return None
+
         # Write to Wiki
+        log(f"Saving to {category}/{filename}...")
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text(ans, encoding='utf-8')
         
@@ -502,6 +576,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         raw_dest = RAW_DIR / file_path.name
         if raw_dest.exists(): # Handle collision
             raw_dest = RAW_DIR / f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_{file_path.name}"
+        log(f"Moving source to raw storage...")
         shutil.move(str(file_path), str(raw_dest))
         
         return {"title": title, "path": f"{category}/{filename}"}
@@ -551,7 +626,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         }
         try:
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req) as res:
+            with urllib.request.urlopen(req, timeout=90) as res:
                 resp_data = json.loads(res.read().decode('utf-8'))
                 return resp_data['candidates'][0]['content']['parts'][0]['text']
         except urllib.error.HTTPError as e:
@@ -576,7 +651,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         }
         try:
             req = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-            with urllib.request.urlopen(req) as res:
+            with urllib.request.urlopen(req, timeout=90) as res:
                 resp_data = json.loads(res.read().decode('utf-8'))
                 return resp_data['choices'][0]['message']['content']
         except urllib.error.HTTPError as e:
@@ -585,7 +660,12 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             return f"Error connecting to Ollama: {str(e)}. Make sure it is running at {CONFIG['ollama_url']}."
 
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 if __name__ == "__main__":
-    with socketserver.TCPServer(("", PORT), WikiHandler) as httpd:
-        print(f"\n🧠 LLM Wiki UI (Python) running at http://localhost:{PORT}\n")
+    with ThreadedTCPServer(("", PORT), WikiHandler) as httpd:
+        print(f"\n🧠 LLM Wiki UI (Python) running at http://localhost:{PORT}")
+        print(f"DEBUG: Threaded server enabled for concurrent processing.\n")
         httpd.serve_forever()

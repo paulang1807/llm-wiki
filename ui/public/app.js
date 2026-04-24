@@ -74,10 +74,20 @@ const elements = {
   btnCancel: document.getElementById('btnCancel'),
   
   // Ingestion Elements
-  btnSyncInbox: document.getElementById('btnSyncInbox'),
+
+  btnIngest: document.getElementById('btnIngest'),
+  ingestView: document.getElementById('ingestView'),
+  ingestDropZone: document.getElementById('ingestDropZone'),
+  ingestFileInput: document.getElementById('ingestFileInput'),
+  ingestUploadList: document.getElementById('ingestUploadList'),
+  ingestFileList: document.getElementById('ingestFileList'),
+  ingestEmptyState: document.getElementById('ingestEmptyState'),
+  btnProcessInbox: document.getElementById('btnProcessInbox'),
+  ingestResult: document.getElementById('ingestResult'),
   dropZone: document.getElementById('dropZone'),
   statusToast: document.getElementById('statusToast'),
-  statusText: document.getElementById('statusText')
+  statusText: document.getElementById('statusText'),
+  ingestLog: document.getElementById('ingestLog')
 };
 
 // ── Initialization ───────────────────────────────────────────
@@ -165,13 +175,13 @@ async function loadPage(path, pushState = true) {
 // ── Rendering ────────────────────────────────────────────────
 
 function renderNav(tree, container, depth = 0) {
-  container.innerHTML = '';
+  if (depth === 0) container.innerHTML = '';
   tree.forEach(node => {
     if (node.type === 'dir') {
       const dirLabel = document.createElement('div');
       dirLabel.className = 'nav-item nav-dir';
       dirLabel.style.paddingLeft = `${20 + depth * 15}px`;
-      dirLabel.textContent = node.name;
+      dirLabel.textContent = node.name.toUpperCase();
       container.appendChild(dirLabel);
       renderNav(node.children, container, depth + 1);
     } else {
@@ -180,7 +190,10 @@ function renderNav(tree, container, depth = 0) {
       item.dataset.path = node.path;
       item.style.paddingLeft = `${20 + depth * 15}px`;
       item.innerHTML = `<span class="nav-icon">${getCategoryEmoji(node.title)}</span> ${node.title}`;
-      item.addEventListener('click', () => loadPage(node.path));
+      item.onclick = () => {
+        console.log('Navigating to:', node.path);
+        loadPage(node.path);
+      };
       container.appendChild(item);
     }
   });
@@ -510,6 +523,11 @@ function setupEventListeners() {
   elements.logo.addEventListener('click', goHome);
 
   elements.btnGraph.addEventListener('click', () => setView('graph'));
+  elements.btnIngest.addEventListener('click', () => setView('ingest'));
+  elements.btnRead.addEventListener('click', () => {
+    // If on graph or ingest, go back to read view
+    setView('read');
+  });
   
   // AI Chat
   elements.btnAI.addEventListener('click', toggleChat);
@@ -528,21 +546,9 @@ function setupEventListeners() {
   elements.btnArchive.addEventListener('click', archivePage);
   elements.btnSave.addEventListener('click', savePage);
   elements.btnCancel.addEventListener('click', () => setEditMode(false));
-  elements.btnSyncInbox.addEventListener('click', ingestInbox);
+  // Ingestion (sidebar button still available as shortcut)
 
-  // Drag & Drop
-  window.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    elements.dropZone.style.display = 'flex';
-  });
-  
-  window.addEventListener('dragleave', (e) => {
-    if (e.relatedTarget === null) {
-      elements.dropZone.style.display = 'none';
-    }
-  });
-
-  window.addEventListener('drop', handleDrop);
+  // Ingest view drag/drop and file input are wired in loadIngestView()
 
   elements.chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -578,25 +584,36 @@ function setupEventListeners() {
 
 function setView(view) {
   state.view = view;
-  elements.btnRead.classList.toggle('active', view === 'read');
-  elements.btnGraph.classList.toggle('active', view === 'graph');
-  
+  elements.btnRead.classList.toggle('active',   view === 'read');
+  elements.btnGraph.classList.toggle('active',  view === 'graph');
+  elements.btnIngest.classList.toggle('active', view === 'ingest');
+
+  // Hide all switchable views first
+  elements.graphView.style.display  = 'none';
+  elements.ingestView.style.display = 'none';
+
   if (view === 'read') {
-    elements.graphView.style.display = 'none';
     elements.pageView.style.display = state.currentPage ? 'block' : 'none';
-    elements.welcome.style.display = state.currentPage ? 'none' : 'flex';
+    elements.welcome.style.display  = state.currentPage ? 'none'  : 'flex';
     if (graphSimulation) { cancelAnimationFrame(graphSimulation); graphSimulation = null; }
     if (renderGraph._abort) { renderGraph._abort.abort(); renderGraph._abort = null; }
-  } else {
-    elements.graphView.style.display = 'block';
+  } else if (view === 'graph') {
     elements.pageView.style.display = 'none';
-    elements.welcome.style.display = 'none';
+    elements.welcome.style.display  = 'none';
+    elements.graphView.style.display = 'block';
     loadGraph();
+  } else if (view === 'ingest') {
+    elements.pageView.style.display  = 'none';
+    elements.welcome.style.display   = 'none';
+    elements.ingestView.style.display = 'block';
+    if (graphSimulation) { cancelAnimationFrame(graphSimulation); graphSimulation = null; }
+    if (renderGraph._abort) { renderGraph._abort.abort(); renderGraph._abort = null; }
+    loadIngestView();
   }
 }
 
 function goHome() {
-  // Stop graph if running
+  // Stop graph/ingest if running
   if (graphSimulation) { cancelAnimationFrame(graphSimulation); graphSimulation = null; }
   if (renderGraph._abort) { renderGraph._abort.abort(); renderGraph._abort = null; }
 
@@ -605,13 +622,15 @@ function goHome() {
   state.view = 'read';
 
   // Update UI
-  elements.graphView.style.display = 'none';
-  elements.pageView.style.display = 'none';
-  elements.welcome.style.display = 'flex';
+  elements.graphView.style.display  = 'none';
+  elements.ingestView.style.display = 'none';
+  elements.pageView.style.display   = 'none';
+  elements.welcome.style.display    = 'flex';
 
   // Update button states
   elements.btnRead.classList.add('active');
   elements.btnGraph.classList.remove('active');
+  elements.btnIngest.classList.remove('active');
 
   // Clear URL hash without triggering a page load
   window.history.pushState({}, '', '/');
@@ -766,6 +785,110 @@ async function archivePage() {
 
 // ── Ingestion Logic ──────────────────────────────────────────
 
+const FILE_ICONS = { '.md': '📝', '.pdf': '📄', '.txt': '📃', '.rtf': '📋' };
+
+function fileIcon(name) {
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return FILE_ICONS[ext] || '📎';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+async function loadIngestView() {
+  // ── Load inbox file list ─────────────────────────────────────
+  try {
+    const res = await fetch('/api/inbox-files');
+    const files = await res.json();
+    const list = elements.ingestFileList;
+
+    if (files.length === 0) {
+      list.innerHTML = '<div class="ingest-empty">Inbox is empty — upload files or place them in <code>raw/inbox/</code></div>';
+    } else {
+      list.innerHTML = files.map(f => `
+        <div class="ingest-file-item">
+          <span class="ingest-file-icon">${fileIcon(f.name)}</span>
+          <span class="ingest-file-name">${f.name}</span>
+          <span class="ingest-file-size">${formatSize(f.size)}</span>
+        </div>`).join('');
+    }
+  } catch (e) {
+    elements.ingestFileList.innerHTML = '<div class="ingest-empty">Could not read inbox.</div>';
+  }
+
+  // ── Drag & Drop on the ingest drop zone ──────────────────────
+  const dz = elements.ingestDropZone;
+
+  // Prevent stale listeners by cloning (simple approach for a refresh scenario)
+  const newDz = dz.cloneNode(true);
+  dz.parentNode.replaceChild(newDz, dz);
+  elements.ingestDropZone = newDz;
+
+  // Re-grab file input from the new clone
+  elements.ingestFileInput = document.getElementById('ingestFileInput');
+
+  newDz.addEventListener('dragover', e => {
+    e.preventDefault();
+    newDz.classList.add('drag-over');
+  });
+  newDz.addEventListener('dragleave', e => {
+    if (!newDz.contains(e.relatedTarget)) newDz.classList.remove('drag-over');
+  });
+  newDz.addEventListener('drop', async e => {
+    e.preventDefault();
+    newDz.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length) await handleIngestFiles(files);
+  });
+
+  // ── File picker ───────────────────────────────────────────────
+  elements.ingestFileInput.addEventListener('change', async e => {
+    const files = Array.from(e.target.files);
+    if (files.length) await handleIngestFiles(files);
+    e.target.value = '';  // allow re-selecting same file
+  });
+
+  // ── Process inbox button ──────────────────────────────────────
+  elements.btnProcessInbox.onclick = async () => {
+    const result = elements.ingestResult;
+    result.style.display = 'none';
+    await ingestInbox();
+    // Refresh UI after a small delay to ensure backend has settled
+    setTimeout(async () => {
+      await loadTree();
+      await loadIngestView();
+      await loadStats();
+      await loadIndex();
+    }, 500);
+  };
+}
+
+async function handleIngestFiles(files) {
+  const uploadList = elements.ingestUploadList;
+  uploadList.innerHTML = '';
+
+  for (const file of files) {
+    const item = document.createElement('div');
+    item.className = 'ingest-upload-item';
+    item.innerHTML = `<span>${fileIcon(file.name)} ${file.name}</span><span class="ingest-uploading">Uploading…</span>`;
+    uploadList.appendChild(item);
+
+    try {
+      await uploadFile(file);
+      item.querySelector('.ingest-uploading').textContent = '✓ Added to inbox';
+      item.querySelector('.ingest-uploading').className = 'ingest-upload-ok';
+    } catch {
+      item.querySelector('.ingest-uploading').textContent = '✗ Failed';
+      item.querySelector('.ingest-uploading').className = 'ingest-upload-err';
+    }
+  }
+  // Refresh file list after upload
+  await loadIngestView();
+}
+
 async function handleDrop(e) {
   e.preventDefault();
   elements.dropZone.style.display = 'none';
@@ -803,25 +926,66 @@ async function uploadFile(file) {
 async function ingestInbox() {
   if (state.isProcessing) return;
   state.isProcessing = true;
-  showToast('AI Ingesting Content...');
-  elements.btnSyncInbox.style.opacity = '0.5';
+  
+  elements.ingestLog.innerHTML = '';
+  elements.ingestLog.style.display = 'block';
+  elements.ingestResult.style.display = 'none';
+  if (elements.btnProcessInbox) elements.btnProcessInbox.style.opacity = '0.5';
+  if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = true;
+  
+  const appendLog = (msg, type) => {
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.textContent = msg;
+    elements.ingestLog.appendChild(div);
+    elements.ingestLog.scrollTop = elements.ingestLog.scrollHeight;
+  };
+
+  appendLog('Connecting to AI ingestion stream...', 'info');
 
   try {
-    const res = await fetch('/api/ingest-inbox', { method: 'POST' });
-    const data = await res.json();
-    
-    if (data.processed > 0) {
-      showToast(`Successfully ingested ${data.processed} note(s)!`);
+    const response = await fetch('/api/ingest-inbox', { method: 'POST' });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let partial = '';
+    let finalResult = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = (partial + chunk).split('\n');
+      partial = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const data = JSON.parse(line);
+          if (data.FINAL_RESULT) finalResult = data;
+          if (data.message) appendLog(data.message, data.type);
+        } catch (e) {
+          // If not JSON, just append as raw step
+          appendLog(line, 'step');
+        }
+      }
+    }
+
+    if (finalResult && finalResult.processed > 0) {
+      showToast(`Successfully ingested ${finalResult.processed} note(s)!`);
       await Promise.all([loadTree(), loadIndex(), loadStats()]);
-    } else {
+    } else if (finalResult && finalResult.total_in_inbox === 0) {
       showToast('Inbox is empty.');
     }
+
   } catch (err) {
-    showToast('Ingestion failed: ' + err.message);
+    appendLog('Stream Error: ' + err.message, 'error');
+    showToast('Ingestion failed.');
   } finally {
     state.isProcessing = false;
-    elements.btnSyncInbox.style.opacity = '1';
-    setTimeout(hideToast, 3000);
+    if (elements.btnProcessInbox) elements.btnProcessInbox.style.opacity = '1';
+    if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = false;
+    setTimeout(hideToast, 4000);
   }
 }
 

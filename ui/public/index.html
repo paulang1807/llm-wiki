@@ -49,6 +49,13 @@
           <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
         </svg>
       </button>
+      <button class="view-btn" id="btnIngest" title="Ingest view">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </button>
       <div class="stats-pill" id="statsPill"><span id="statsText">— pages</span></div>
       <button class="view-btn ai-btn" id="btnAI" title="Ask AI Assistant">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -62,14 +69,6 @@
   <!-- ── Main Layout ────────────────────────────────────────────── -->
   <div class="layout" id="layout">
     
-    <!-- Drop Zone Overlay -->
-    <div id="dropZone" class="drop-zone" style="display:none">
-      <div class="drop-zone-content">
-        <div class="drop-zone-icon">📥</div>
-        <div class="drop-zone-text">Drop files to Ingest</div>
-      </div>
-    </div>
-
     <!-- Status Toast -->
     <div id="statusToast" class="status-toast" style="display:none">
       <div class="status-toast-loader"></div>
@@ -82,11 +81,6 @@
         <div class="sidebar-header-row">
           <div class="sidebar-label">WIKI PAGES</div>
           <div class="header-actions" style="margin-left:auto; gap:4px;">
-            <button class="icon-btn" id="btnSyncInbox" title="Process Inbox">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
-            </button>
             <button class="icon-btn" id="btnNewPage" title="Create new page">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -153,6 +147,53 @@
         <canvas id="graphCanvas"></canvas>
         <div class="graph-legend" id="graphLegend"></div>
         <div class="graph-tooltip" id="graphTooltip"></div>
+      </div>
+
+      <!-- Ingest view -->
+      <div class="ingest-view" id="ingestView" style="display:none">
+        <div class="ingest-layout">
+
+          <!-- Left: Drop zone + file picker -->
+          <div class="ingest-panel">
+            <div class="ingest-panel-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload Files
+            </div>
+            <div class="ingest-drop-zone" id="ingestDropZone">
+              <div class="ingest-drop-icon">📥</div>
+              <div class="ingest-drop-title">Drag &amp; Drop Files Here</div>
+              <div class="ingest-drop-sub">Supports Markdown (.md), PDF, RTF, and plain text files</div>
+              <div class="ingest-drop-divider"><span>or</span></div>
+              <label class="ingest-file-btn" for="ingestFileInput">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Choose Files
+              </label>
+              <input type="file" id="ingestFileInput" multiple accept=".md,.pdf,.txt,.rtf" style="display:none">
+            </div>
+            <div class="ingest-upload-list" id="ingestUploadList"></div>
+          </div>
+
+          <!-- Right: Inbox queue -->
+          <div class="ingest-panel">
+            <div class="ingest-panel-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Inbox Queue
+            </div>
+            <div class="ingest-inbox-desc">Files placed in <code>raw/inbox/</code> will be ingested when you click Process.</div>
+            <div class="ingest-file-list" id="ingestFileList">
+              <div class="ingest-empty" id="ingestEmptyState">Inbox is empty</div>
+            </div>
+            <div class="ingest-actions">
+              <button class="ingest-process-btn" id="btnProcessInbox">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Process Inbox
+              </button>
+            </div>
+            <div class="ingest-result" id="ingestResult" style="display:none"></div>
+            <div class="ingest-log" id="ingestLog" style="display:none"></div>
+          </div>
+
+        </div>
       </div>
 
     </main>

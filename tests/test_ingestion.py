@@ -102,9 +102,10 @@ class TestIngestion(unittest.TestCase):
         self.assertTrue((self.raw_dir / "raw_note.txt").exists(), "Source file should exist in raw root")
         
         # Response check
-        res = json.loads(handler.wfile.getvalue().decode('utf-8'))
-        self.assertEqual(res['processed'], 1)
-        self.assertEqual(res['items'][0]['title'], "Python Decorators")
+        output = handler.wfile.getvalue().decode('utf-8')
+        lines = [json.loads(l) for l in output.strip().split('\n') if l.strip()]
+        final = next((l for l in lines if l.get('FINAL_RESULT')), {})
+        self.assertEqual(final.get('processed'), 1)
 
 if __name__ == '__main__':
     unittest.main()

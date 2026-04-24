@@ -66,7 +66,9 @@ class TestLogoHomeNavigation(unittest.TestCase):
 
     def test_goHome_hides_graph_view(self):
         """goHome must also hide the graph view."""
-        self.assertIn("elements.graphView.style.display = 'none'", self.js,
+        # Collapse multiple spaces to handle alignment formatting in source
+        js_collapsed = ' '.join(self.js.split())
+        self.assertIn("elements.graphView.style.display = 'none'", js_collapsed,
                       "goHome must hide the graphView element")
 
     def test_goHome_resets_url(self):
