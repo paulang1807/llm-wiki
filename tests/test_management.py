@@ -59,23 +59,24 @@ class TestManagement(unittest.TestCase):
         handler = self.get_handler("/api/save", body=body)
         handler.do_POST()
         
-        # Verify file exists
-        target = self.wiki_dir / "python/new-test.md"
+        # Verify file exists (relocated to General/General because no domain in content)
+        target = self.wiki_dir / "General/General/new-test.md"
         self.assertTrue(target.exists())
         self.assertIn("Hello World", target.read_text())
         
         # Verify response
         response = json.loads(handler.wfile.getvalue().decode('utf-8'))
         self.assertEqual(response['status'], "saved")
-        self.assertEqual(response['title'], "New Test")
+        self.assertEqual(response['path'], "General/General/new-test.md")
 
     def test_api_save_update_page(self):
         # Create existing
-        existing = self.wiki_dir / "update.md"
+        existing = self.wiki_dir / "General/General/update.md"
+        existing.parent.mkdir(parents=True, exist_ok=True)
         existing.write_text("Old content")
         
         body = {
-            "path": "update.md",
+            "path": "General/General/update.md",
             "content": "New content"
         }
         handler = self.get_handler("/api/save", body=body)

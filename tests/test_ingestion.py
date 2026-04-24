@@ -92,8 +92,8 @@ class TestIngestion(unittest.TestCase):
         handler.do_POST()
         
         # 4. Verify results
-        # File should be in wiki/python/python-decorators.md
-        wiki_file = self.wiki_dir / "python" / "python-decorators.md"
+        # File should be in wiki/python/General/python-decorators.md
+        wiki_file = self.wiki_dir / "python" / "General" / "python-decorators.md"
         self.assertTrue(wiki_file.exists(), f"Wiki file {wiki_file} should exist")
         self.assertIn("Python Decorators", wiki_file.read_text())
         

@@ -285,21 +285,33 @@ function renderMeta(fm) {
   `;
 }
 
-function renderWelcomeGrid() {
-  const cards = [
-    { title: 'Python', icon: '🐍', path: 'python/python-basics.md', desc: 'Core language, OOP, and testing.' },
-    { title: 'Machine Learning', icon: '🤖', path: 'ml/ml-workflow.md', desc: 'Workflows, Algorithms, and Stats.' },
-    { title: 'Generative AI', icon: '🧠', path: 'genai/llm-concepts.md', desc: 'LLMs, RAG, and Agents.' },
-    { title: 'Statistics', icon: '📊', path: 'concepts/statistics-basics.md', desc: 'Foundations and ML math.' }
-  ];
+async function renderWelcomeGrid() {
+  try {
+    const res = await fetch('/api/domains');
+    const domains = await res.json();
+    
+    if (domains.length === 0) {
+      elements.welcomeGrid.innerHTML = `
+        <div class="welcome-card empty">
+          <div class="welcome-card-icon">📭</div>
+          <div class="welcome-card-title">Empty Wiki</div>
+          <div class="welcome-card-desc">Start by uploading notes to your inbox.</div>
+        </div>
+      `;
+      return;
+    }
 
-  elements.welcomeGrid.innerHTML = cards.map(c => `
-    <div class="welcome-card" onclick="navigateWiki('${c.path}')">
-      <div class="welcome-card-icon">${c.icon}</div>
-      <div class="welcome-card-title">${c.title}</div>
-      <div class="welcome-card-desc">${c.desc}</div>
-    </div>
-  `).join('');
+    elements.welcomeGrid.innerHTML = domains.map(d => `
+      <div class="welcome-card" onclick="navigateWiki('${d.path}')">
+        <div class="welcome-card-icon">${d.icon}</div>
+        <div class="welcome-card-title">${d.name}</div>
+        <div class="welcome-card-desc">${d.desc}</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Failed to render welcome grid:', err);
+    elements.welcomeGrid.innerHTML = '<p class="error">Failed to load domains.</p>';
+  }
 }
 
 // ── Graph View ───────────────────────────────────────────────
@@ -744,12 +756,13 @@ async function savePage() {
     });
     
     if (!res.ok) throw new Error('Failed to save');
+    const resData = await res.json();
     
     setEditMode(false);
     
     // Refresh UI
     await Promise.all([loadTree(), loadIndex(), loadStats()]);
-    loadPage(path);
+    loadPage(resData.path || path);
     
   } catch (err) {
     alert('Error saving page: ' + err.message);

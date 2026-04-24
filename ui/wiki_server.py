@@ -79,14 +79,16 @@ class WikiEngine:
         entries = sorted(list(directory.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower()))
         for entry in entries:
             if entry.name.startswith('.'): continue
-            relative_path = str(entry.relative_to(base_dir))
+            relative_path = str(entry.relative_to(base_dir)).replace('\\', '/')
             if entry.is_dir():
-                result.append({
-                    "type": "dir",
-                    "name": entry.name,
-                    "path": relative_path,
-                    "children": self.walk_dir(entry, base_dir)
-                })
+                children = self.walk_dir(entry, base_dir)
+                if children:  # Only add if has files or non-empty subdirs
+                    result.append({
+                        "type": "dir",
+                        "name": entry.name,
+                        "path": relative_path,
+                        "children": children
+                    })
             elif entry.name.endswith('.md'):
                 title = entry.stem
                 try:
@@ -99,7 +101,7 @@ class WikiEngine:
                     "type": "file",
                     "name": entry.name,
                     "title": title,
-                    "path": relative_path.replace('\\', '/')
+                    "path": relative_path
                 })
         return result
 
@@ -338,6 +340,8 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                 "geminiReady": bool(CONFIG["gemini_key"]),
                 "defaultProvider": "gemini" if CONFIG["gemini_key"] else "ollama"
             })
+        elif url.path == '/api/domains':
+            self.handle_domains()
         elif url.path == '/api/inbox-files':
             inbox = RAW_DIR / "inbox"
             inbox.mkdir(parents=True, exist_ok=True)
@@ -404,14 +408,43 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         full_path = WIKI_DIR / path_val
         
         try:
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_text(content, encoding='utf-8')
-            
+            # 1. Parse current content for domain/subdomain
             fm, _ = ENGINE.parse_frontmatter(content, file_path=str(full_path))
+            domain = fm.get('domain') or fm.get('category', 'General')
+            subdomain = fm.get('subdomain', 'General')
+            
+            # 2. Determine ideal path
+            def clean(s): return re.sub(r'[^a-zA-Z0-9\s\-]', '', str(s)).strip()
+            domain = clean(domain)
+            subdomain = clean(subdomain)
+            filename = full_path.name
+            
+            ideal_rel_path = f"{domain}/{subdomain}/{filename}".replace('\\', '/')
+            new_path = WIKI_DIR / domain / subdomain / filename
+            
+            # 3. Save to the correct location
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            new_path.write_text(content, encoding='utf-8')
+            
+            # 4. If path changed, remove old file and cleanup
+            if str(new_path) != str(full_path) and full_path.exists():
+                print(f"DEBUG: Relocating {path_val} -> {ideal_rel_path}")
+                full_path.unlink()
+                
+                # Try to cleanup old directory if empty
+                try:
+                    if full_path.parent.exists() and not any(full_path.parent.iterdir()):
+                        full_path.parent.rmdir()
+                        if full_path.parent.parent.exists() and not any(full_path.parent.parent.iterdir()):
+                            full_path.parent.parent.rmdir()
+                except: pass
+                
+            path_val = ideal_rel_path
+
             self.send_json({
                 "status": "saved",
                 "path": path_val,
-                "title": fm.get('title', full_path.stem)
+                "title": fm.get('title', new_path.stem)
             })
         except Exception as e:
             self.send_error(500, f"Save failed: {str(e)}")
@@ -455,6 +488,60 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"status": "uploaded", "filename": filename})
         except Exception as e:
             self.send_error(500, f"Upload failed: {str(e)}")
+
+    def handle_domains(self):
+        domains = []
+        if not WIKI_DIR.exists():
+            self.send_json([])
+            return
+
+        # Simple domain icon map
+        ICONS = {
+            "Engineering": "🛠️",
+            "Software Engineering": "💻",
+            "Data Science": "📊",
+            "AI": "🧠",
+            "Machine Learning": "🤖",
+            "DevOps": "♾️",
+            "OS": "🖥️",
+            "Concepts": "💡",
+            "Personal": "👤",
+            "Meta": "🏷️",
+            "General": "📦"
+        }
+
+        # Iterate over WIKI_DIR
+        for domain_dir in sorted(WIKI_DIR.iterdir()):
+            if domain_dir.is_dir() and not domain_dir.name.startswith('.'):
+                subdomains = []
+                page_count = 0
+                first_page = None
+                
+                for sub_dir in sorted(domain_dir.iterdir()):
+                    if sub_dir.is_dir() and not sub_dir.name.startswith('.'):
+                        pages = [f for f in sub_dir.iterdir() if f.is_file() and f.name.endswith('.md')]
+                        if pages:
+                            subdomains.append(sub_dir.name)
+                            page_count += len(pages)
+                            if not first_page:
+                                first_page = f"{domain_dir.name}/{sub_dir.name}/{pages[0].name}"
+                    elif sub_dir.is_file() and sub_dir.name.endswith('.md'):
+                        # Handle old flat structure compatibility
+                        page_count += 1
+                        if not first_page:
+                            first_page = f"{domain_dir.name}/{sub_dir.name}"
+
+                if page_count > 0:
+                    domains.append({
+                        "name": domain_dir.name,
+                        "icon": ICONS.get(domain_dir.name, "📄"),
+                        "subdomainsCount": len(subdomains),
+                        "pagesCount": page_count,
+                        "desc": f"Explore {len(subdomains)} subdomains and {page_count} pages.",
+                        "path": first_page
+                    })
+        
+        self.send_json(domains)
 
     def handle_ingest_inbox(self):
         inbox = RAW_DIR / "inbox"
@@ -531,13 +618,15 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             "Respond ONLY with a valid Markdown file containing YAML frontmatter and a clean, technical summary of the note.\n\n"
             "FRONTMATTER FIELDS:\n"
             "- title: Descriptive title\n"
-            "- category: One of [python, ml, genai, concepts, meta, os]\n"
+            "- domain: High-level area (e.g., Software Engineering, Data Science, AI, DevOps, Personal)\n"
+            "- subdomain: Specific topic (e.g., Python, SQL, LLMs, Docker, Recipes)\n"
             "- tags: List of relevant keywords\n"
             "- confidence: float 0.0 to 1.0\n"
             "- related: List of [[Wiki Link]] to related pages if any\n"
             "- sources: List of source filenames\n\n"
+            "If the note contains a '# Domain: ...' or '# Subdomain: ...' hint, prioritize those values.\n\n"
             "EXAMPLE OUTPUT:\n"
-            "---\ntitle: Git Basics\ncategory: os\ntags: [git, version control]\nconfidence: 1.0\n---\n# Git Basics\n..."
+            "---\ntitle: Git Basics\ndomain: Engineering\nsubdomain: Version Control\ntags: [git, version control]\nconfidence: 1.0\n---\n# Git Basics\n..."
         )
         
         user_prompt = f"SOURCE FILENAME: {file_path.name}\nCONTENT:\n{content}"
@@ -553,14 +642,36 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             
         # Parse result
         fm, _ = ENGINE.parse_frontmatter(ans)
+        
+        # Check raw content for override hints
+        raw_fm, _ = ENGINE.parse_frontmatter(content)
+        domain = raw_fm.get('domain')
+        subdomain = raw_fm.get('subdomain')
+        
+        # If not in frontmatter, look for line-based hints
+        if not domain:
+            d_match = re.search(r'(?:^|\n)(?:#\s*)?Domain:\s*(.*)', content, re.IGNORECASE)
+            if d_match: domain = d_match.group(1).strip()
+        if not subdomain:
+            s_match = re.search(r'(?:^|\n)(?:#\s*)?Subdomain:\s*(.*)', content, re.IGNORECASE)
+            if s_match: subdomain = s_match.group(1).strip()
+            
+        # Fallbacks to AI response
+        domain = domain or fm.get('domain') or fm.get('category', 'General')
+        subdomain = subdomain or fm.get('subdomain', 'General')
         title = fm.get('title', file_path.stem)
-        category = fm.get('category', 'meta')
+        
+        # Sanitize parts
+        def clean(s): return re.sub(r'[^a-zA-Z0-9\s\-]', '', str(s)).strip()
+        domain = clean(domain)
+        subdomain = clean(subdomain)
         
         # Sanitize filename
         safe_name = re.sub(r'[^a-z0-9\-]', '', title.lower().replace(' ', '-'))
         if not safe_name: safe_name = "untitled"
         filename = safe_name + ".md"
-        dest_path = WIKI_DIR / category / filename
+        
+        dest_path = WIKI_DIR / domain / subdomain / filename
         
         # Write to Wiki only if not an error message
         if ans.strip().startswith("Error") or ans.strip().startswith("Gemini API Error") or ans.strip().startswith("Ollama Error"):
@@ -568,7 +679,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             return None
 
         # Write to Wiki
-        log(f"Saving to {category}/{filename}...")
+        log(f"Saving to {domain}/{subdomain}/{filename}...")
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         dest_path.write_text(ans, encoding='utf-8')
         
@@ -579,7 +690,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
         log(f"Moving source to raw storage...")
         shutil.move(str(file_path), str(raw_dest))
         
-        return {"title": title, "path": f"{category}/{filename}"}
+        return {"title": title, "path": f"{domain}/{subdomain}/{filename}"}
 
     # --- AI / RAG Logic ---
     def handle_ask(self, data):

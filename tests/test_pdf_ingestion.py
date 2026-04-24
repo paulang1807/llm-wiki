@@ -76,7 +76,7 @@ class TestPDFIngestion(unittest.TestCase):
         handler.do_POST()
         
         # 5. Verify results
-        wiki_file = self.wiki_dir / "concepts" / "pdf-test.md"
+        wiki_file = self.wiki_dir / "concepts" / "General" / "pdf-test.md"
         self.assertTrue(wiki_file.exists())
         self.assertIn("PDF Test", wiki_file.read_text())
         
