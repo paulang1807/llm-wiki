@@ -87,7 +87,13 @@ const elements = {
   dropZone: document.getElementById('dropZone'),
   statusToast: document.getElementById('statusToast'),
   statusText: document.getElementById('statusText'),
-  ingestLog: document.getElementById('ingestLog')
+  ingestLog: document.getElementById('ingestLog'),
+  ingestPasteText: document.getElementById('ingestPasteText'),
+  ingestPasteTitle: document.getElementById('ingestPasteTitle'),
+  ingestPasteDate: document.getElementById('ingestPasteDate'),
+  btnSavePaste: document.getElementById('btnSavePaste'),
+  btnCancelPaste: document.getElementById('btnCancelPaste'),
+  queueCount: document.getElementById('queueCount')
 };
 
 // ── Initialization ───────────────────────────────────────────
@@ -842,6 +848,7 @@ async function loadIngestView() {
           <span class="ingest-file-size">${formatSize(f.size)}</span>
         </div>`).join('');
     }
+    elements.queueCount.textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
   } catch (e) {
     elements.ingestFileList.innerHTML = '<div class="ingest-empty">Could not read inbox.</div>';
   }
@@ -886,6 +893,68 @@ async function loadIngestView() {
     // Refresh UI after a small delay to ensure backend has settled
     setTimeout(refreshUI, 500);
   };
+
+  // ── Paste note button (Single-Click Ingest) ──────────────────
+  elements.btnSavePaste.onclick = async () => {
+    const content = elements.ingestPasteText.value.trim();
+    const title = elements.ingestPasteTitle.value.trim();
+    const date = elements.ingestPasteDate.value;
+    
+    if (!content) return;
+
+    elements.btnSavePaste.disabled = true;
+    elements.btnSavePaste.textContent = 'Ingesting...';
+
+    try {
+      const res = await fetch('/api/paste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, title, date, ingestImmediate: true })
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to ingest pasted note');
+
+      elements.ingestPasteText.value = '';
+      elements.ingestPasteTitle.value = '';
+      elements.ingestPasteDate.value = '';
+      
+      showToast('Note ingested successfully');
+      
+      // If the backend returns a stream URL or we want to show log, we handle it here.
+      // For now, we just refresh everything.
+      await loadIngestView();
+      await refreshUI();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      elements.btnSavePaste.disabled = false;
+      elements.btnSavePaste.textContent = 'Save & Ingest';
+    }
+  };
+
+  elements.btnCancelPaste.onclick = () => {
+    elements.ingestPasteText.value = '';
+    elements.ingestPasteTitle.value = '';
+    elements.ingestPasteDate.value = '';
+  };
+}
+
+// ── Tab Switching ──────────────────────────────────────────
+function switchIngestTab(tab) {
+  const tabs = document.querySelectorAll('.ingest-tab');
+  const panes = document.querySelectorAll('.tab-pane');
+  
+  tabs.forEach(t => t.classList.remove('active'));
+  panes.forEach(p => p.classList.remove('active'));
+  
+  if (tab === 'upload') {
+    document.getElementById('tabUpload').classList.add('active');
+    document.getElementById('contentUpload').classList.add('active');
+  } else {
+    document.getElementById('tabPaste').classList.add('active');
+    document.getElementById('contentPaste').classList.add('active');
+  }
 }
 
 async function handleIngestFiles(files) {

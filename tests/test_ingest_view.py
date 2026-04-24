@@ -231,20 +231,28 @@ class TestIngestViewCSS(unittest.TestCase):
         self.assertIn(".ingest-view", self.css)
 
     def test_ingest_drop_zone_class_exists(self):
-        self.assertIn(".ingest-drop-zone", self.css)
+        self.assertIn(".modern-drop-zone", self.css)
 
     def test_drag_over_state_styled(self):
         self.assertIn(".drag-over", self.css,
                       "drag-over CSS class must be defined for visual drop feedback")
 
     def test_ingest_process_btn_styled(self):
-        self.assertIn(".ingest-process-btn", self.css)
+        self.assertIn(".modern-process-btn", self.css)
+
+    def test_file_btn_is_visible(self):
+        # The button label was invisible because of a typo (var(--bg-main))
+        self.assertIn(".modern-file-btn", self.css)
+        self.assertIn("color: var(--bg-dark)", self.css)
 
     def test_ingest_file_item_styled(self):
         self.assertIn(".ingest-file-item", self.css)
 
-    def test_ingest_layout_is_grid(self):
-        self.assertIn("grid-template-columns", self.css)
+    def test_ingest_layout_is_flex_column(self):
+        self.assertIn("flex-direction: column !important", self.css)
+
+    def test_ingest_footer_styled(self):
+        self.assertIn(".ingest-footer", self.css)
 
 
 if __name__ == '__main__':

@@ -275,6 +275,11 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_upload()
         elif url.path == '/api/ingest-inbox':
             self.handle_ingest_inbox()
+        elif url.path == '/api/paste':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data)
+            self.handle_paste(data)
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -448,6 +453,50 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             })
         except Exception as e:
             self.send_error(500, f"Save failed: {str(e)}")
+
+    def handle_paste(self, data):
+        content = data.get('content', '')
+        title = data.get('title', '')
+        date = data.get('date', '')
+        ingest_immediate = data.get('ingestImmediate', False)
+        
+        if not content:
+            self.send_error(400, "Content required")
+            return
+            
+        try:
+            inbox = RAW_DIR / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
+            
+            # Embed title and date into frontmatter if provided
+            header = "---\n"
+            if title: header += f"title: {title}\n"
+            if date: header += f"last_updated: {date}\n"
+            header += "---\n"
+            
+            full_content = header + content
+            
+            # Generate a unique filename
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            safe_title = re.sub(r'[^a-z0-9\-]', '', title.lower().replace(' ', '-')) if title else "pasted"
+            filename = f"{safe_title}_{timestamp}.md"
+            
+            file_path = inbox / filename
+            file_path.write_text(full_content, encoding='utf-8')
+            
+            result = {"status": "saved", "filename": filename}
+            
+            if ingest_immediate:
+                # Synchronously ingest the file
+                ingest_res = self.ingest_one_file(file_path)
+                if ingest_res:
+                    result["status"] = "ingested"
+                    result["wiki_path"] = ingest_res["path"]
+                    result["title"] = ingest_res["title"]
+            
+            self.send_json(result)
+        except Exception as e:
+            self.send_error(500, f"Paste failed: {str(e)}")
 
     def extract_text_from_pdf(self, file_path):
         try:
