@@ -289,6 +289,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, "Endpoint not found")
 
     def handle_api_get(self, url):
+        print(f"DEBUG: API GET {url.path}")
         params = urllib.parse.parse_qs(url.query)
         
         if url.path == '/api/tree':
@@ -352,7 +353,7 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             })
         elif url.path == '/api/domains':
             self.handle_domains()
-        elif url.path == '/api/inbox-files':
+        elif url.path == '/api/inbox-files' or url.path == '/api/inbox':
             inbox = RAW_DIR / "inbox"
             inbox.mkdir(parents=True, exist_ok=True)
             files = [
@@ -371,11 +372,27 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Expires', '0')
+            self.send_header('Surrogate-Control', 'no-store')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(data).encode('utf-8'))
         except Exception as e:
             print(f"Error sending JSON: {e}")
+
+    def setup_stream_response(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('Connection', 'keep-alive')
+        self.end_headers()
+
+    def stream_log_message(self, msg, type="info", final=None):
+        data = {"message": msg, "type": type}
+        if final:
+            data.update(final)
+            data["FINAL_RESULT"] = True
+        self.wfile.write((json.dumps(data) + "\n").encode('utf-8'))
+        self.wfile.flush()
 
     def handle_archive(self, data):
         path_val = data.get('path', '')
@@ -492,16 +509,28 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             result = {"status": "saved", "filename": filename}
             
             if ingest_immediate:
-                # Synchronously ingest the file
-                ingest_res = self.ingest_one_file(file_path)
+                self.setup_stream_response()
+                def log_fn(msg, type="info"):
+                    self.stream_log_message(msg, type)
+                    
+                log_fn(f"Starting ingestion for pasted note...", "info")
+                ingest_res = self.ingest_one_file(file_path, log_fn=log_fn)
+                
                 if ingest_res:
                     result["status"] = "ingested"
                     result["wiki_path"] = ingest_res["path"]
                     result["title"] = ingest_res["title"]
-            
-            self.send_json(result)
+                    result["processed"] = 1
+                    self.stream_log_message("Note ingested successfully.", "success", final=result)
+                else:
+                    self.stream_log_message("Ingestion failed.", "error", final={"processed": 0})
+            else:
+                self.send_json(result)
         except Exception as e:
-            self.send_error(500, f"Paste failed: {str(e)}")
+            if ingest_immediate:
+                self.stream_log_message(f"Error: {str(e)}", "error", final={"processed": 0})
+            else:
+                self.send_error(500, f"Paste failed: {str(e)}")
 
     def handle_link(self, data):
         url = data.get('url', '')
@@ -553,15 +582,32 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             result = {"status": "saved", "filename": filename}
             
             if ingest_immediate:
-                ingest_res = self.ingest_one_file(file_path)
+                self.setup_stream_response()
+                def log_fn(msg, type="info"):
+                    self.stream_log_message(msg, type)
+                
+                log_fn(f"Fetched content from {url}", "success")
+                log_fn(f"Starting AI ingestion...", "info")
+                
+                ingest_res = self.ingest_one_file(file_path, log_fn=log_fn)
                 if ingest_res:
                     result["status"] = "ingested"
                     result["wiki_path"] = ingest_res["path"]
                     result["title"] = ingest_res["title"]
-            
-            self.send_json(result)
+                    result["processed"] = 1
+                    self.stream_log_message("Link ingested successfully.", "success", final=result)
+                else:
+                    self.stream_log_message("Ingestion failed.", "error", final={"processed": 0})
+            else:
+                self.send_json(result)
         except Exception as e:
-            self.send_error(500, f"Link ingestion failed: {str(e)}")
+            if ingest_immediate:
+                try:
+                    self.setup_stream_response()
+                except: pass
+                self.stream_log_message(f"Error: {str(e)}", "error", final={"processed": 0})
+            else:
+                self.send_error(500, f"Link ingestion failed: {str(e)}")
 
     def extract_text_from_pdf(self, file_path):
         try:
@@ -668,22 +714,13 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json({"processed": 0, "status": "Inbox empty"})
             return
             
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/plain; charset=utf-8')
-        self.send_header('Cache-Control', 'no-cache')
-        self.send_header('Connection', 'keep-alive')
-        self.end_headers()
+        self.setup_stream_response()
 
         def stream_log(msg, type="info", final=None):
-            data = {"message": msg, "type": type}
-            if final:
-                data.update(final)
-                data["FINAL_RESULT"] = True
-            self.wfile.write((json.dumps(data) + "\n").encode('utf-8'))
-            self.wfile.flush()
+            self.stream_log_message(msg, type, final)
 
-        # Limit to 5 files per sync to avoid timeouts
-        files_to_process = files[:5]
+        # Process all files in the inbox
+        files_to_process = files
         stream_log(f"Starting ingestion process for {len(files_to_process)} note(s)...", "info")
         
         processed_count = 0
@@ -703,9 +740,13 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
                 stream_log(f"Unexpected error with {f.name}: {str(e)}", "error")
                 
         import time
-        time.sleep(0.2) # Give OS a moment to settle file moves
-        stream_log(f"\nDONE: Processed {processed_count} files. {len(files) - processed_count} remain in inbox.", "success", 
-                   final={"processed": processed_count, "total_in_inbox": len(files)})
+        time.sleep(1.0) # Give OS a moment to settle file moves
+        
+        # Re-check remaining files for accurate reporting
+        remaining = [f for f in inbox.iterdir() if f.is_file() and not f.name.startswith('.')]
+        
+        stream_log(f"\nDONE: Processed {processed_count} files. {len(remaining)} remain in inbox.", "success", 
+                   final={"processed": processed_count, "total_in_inbox": len(remaining)})
 
     def ingest_one_file(self, file_path, log_fn=None):
         def log(msg, type="step"):
@@ -808,6 +849,10 @@ class WikiHandler(http.server.SimpleHTTPRequestHandler):
 
         # Re-serialize to include overrides
         _, body = ENGINE.parse_frontmatter(ans)
+        
+        if source_url and source_url not in body:
+            body += f"\n\n---\n**Source:** [{source_url}]({source_url})\n"
+            
         final_content = "---\n"
         for k, v in fm.items():
             final_content += f"{k}: {v}\n"

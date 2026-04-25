@@ -107,5 +107,22 @@ class TestIngestion(unittest.TestCase):
         final = next((l for l in lines if l.get('FINAL_RESULT')), {})
         self.assertEqual(final.get('processed'), 1)
 
+    @patch('wiki_server.WikiHandler.call_gemini')
+    def test_api_ingest_inbox_with_source_url(self, mock_gemini):
+        source = self.inbox_dir / "link_test.md"
+        source.write_text("---\ntitle: Link Test\nsource_url: https://example.com\n---\nSome data from the link.")
+        
+        mock_gemini.return_value = "---\ntitle: Link Test\ncategory: python\ntags: [python]\n---\n# Link Test\nData from the link."
+        
+        handler = self.get_handler("/api/ingest-inbox")
+        handler.do_POST()
+        
+        wiki_file = self.wiki_dir / "python" / "General" / "link-test.md"
+        self.assertTrue(wiki_file.exists(), "Wiki file should exist")
+        content = wiki_file.read_text()
+        
+        self.assertIn("source_url: https://example.com", content)
+        self.assertIn("**Source:** [https://example.com](https://example.com)", content)
+
 if __name__ == '__main__':
     unittest.main()

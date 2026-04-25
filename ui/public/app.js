@@ -156,34 +156,37 @@ async function init() {
 
 // ── API Calls ────────────────────────────────────────────────
 
-async function loadTree() {
-  const res = await fetch('/api/tree');
+async function loadTree(t = Date.now()) {
+  const res = await fetch(`/api/tree?t=${t}`);
   state.tree = await res.json();
+  console.log(`[REFRESH] Tree loaded at t=${t}: ${state.tree.length} top-level nodes.`);
   renderNav(state.tree, elements.wikiNav);
 }
 
-async function loadIndex() {
-  const res = await fetch('/api/index');
+async function loadIndex(t = Date.now()) {
+  const res = await fetch(`/api/index?t=${t}`);
   state.pageIndex = await res.json();
 }
 
-async function loadStats() {
-  const res = await fetch('/api/stats');
+async function loadStats(t = Date.now()) {
+  const res = await fetch(`/api/stats?t=${t}`);
   const stats = await res.json();
   elements.statsText.textContent = `${stats.wikiPages} pages`;
 }
 
 async function refreshUI() {
+  const t = Date.now();
+  console.log(`Refreshing UI (t=${t})...`);
   try {
-    await Promise.all([
-      loadTree(),
-      loadIndex(),
-      loadStats(),
-      renderWelcomeGrid(),
-      loadIngestView()
-    ]);
+    // Sequential await to avoid overwhelming the server and ensure data consistency
+    await loadTree(t);
+    await loadIndex(t);
+    await loadStats(t);
+    await renderWelcomeGrid(t);
+    await loadIngestView(t);
+    console.log(`UI Refresh complete (t=${t}).`);
   } catch (err) {
-    console.error('Refresh UI failed:', err);
+    console.error(`Refresh UI failed (t=${t}):`, err);
   }
 }
 
@@ -279,7 +282,7 @@ function renderPage(data) {
 
   // Sidebar Panels
   renderRelated(data.frontmatter.related || []);
-  renderSources(data.frontmatter.sources || []);
+  renderSources(data.frontmatter.sources || [], data.frontmatter.source_url);
   renderMeta(data.frontmatter);
 }
 
@@ -303,17 +306,38 @@ function renderRelated(related) {
   }).join('');
 }
 
-function renderSources(sources) {
-  if (!sources || sources.length === 0) {
+function renderSources(sources, sourceUrl) {
+  const hasSources = sources && sources.length > 0;
+  const hasSourceUrl = !!sourceUrl;
+  
+  if (!hasSources && !hasSourceUrl) {
     elements.sourcesSection.style.display = 'none';
     return;
   }
+  
   elements.sourcesSection.style.display = 'block';
-  elements.sourcesList.innerHTML = sources.map(s => `
-    <div class="info-item">
-      <div class="info-link" title="${s}">📄 ${s.split('/').pop()}</div>
-    </div>
-  `).join('');
+  let html = '';
+  
+  if (hasSourceUrl) {
+    html += `
+      <div class="info-item">
+        <a href="${sourceUrl}" target="_blank" class="info-link" title="${sourceUrl}" style="display: flex; align-items: center; gap: 6px; text-decoration: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Original Source
+        </a>
+      </div>
+    `;
+  }
+  
+  if (hasSources) {
+    html += sources.map(s => `
+      <div class="info-item">
+        <div class="info-link" title="${s}">📄 ${s.split('/').pop()}</div>
+      </div>
+    `).join('');
+  }
+  
+  elements.sourcesList.innerHTML = html;
 }
 
 function renderMeta(fm) {
@@ -327,9 +351,9 @@ function renderMeta(fm) {
   `;
 }
 
-async function renderWelcomeGrid() {
+async function renderWelcomeGrid(t = Date.now()) {
   try {
-    const res = await fetch('/api/domains');
+    const res = await fetch(`/api/domains?t=${t}`);
     const domains = await res.json();
     
     if (domains.length === 0) {
@@ -853,11 +877,12 @@ function formatSize(bytes) {
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
-async function loadIngestView() {
+async function loadIngestView(t = Date.now()) {
   // ── Load inbox file list ─────────────────────────────────────
   try {
-    const res = await fetch('/api/inbox-files');
+    const res = await fetch(`/api/inbox-files?t=${t}`);
     const files = await res.json();
+    console.log(`[REFRESH] Inbox loaded at t=${t}: ${files.length} files.`);
     const list = elements.ingestFileList;
 
     if (files.length === 0) {
@@ -877,35 +902,39 @@ async function loadIngestView() {
 
   // ── Drag & Drop on the ingest drop zone ──────────────────────
   const dz = elements.ingestDropZone;
+  if (!dz) return;
 
-  // Prevent stale listeners by cloning (simple approach for a refresh scenario)
-  const newDz = dz.cloneNode(true);
-  dz.parentNode.replaceChild(newDz, dz);
-  elements.ingestDropZone = newDz;
-
-  // Re-grab file input from the new clone
+  // Re-bind buttons because they might be inside a part of the DOM that was refreshed
+  elements.btnProcessInbox = document.getElementById('btnProcessInbox');
+  elements.ingestFileList = document.getElementById('ingestFileList');
+  elements.queueCount = document.getElementById('queueCount');
   elements.ingestFileInput = document.getElementById('ingestFileInput');
 
-  newDz.addEventListener('dragover', e => {
+  // Hide console if not currently processing
+  if (!state.isProcessing) {
+    hideIngestConsole();
+  }
+
+  dz.ondragover = e => {
     e.preventDefault();
-    newDz.classList.add('drag-over');
-  });
-  newDz.addEventListener('dragleave', e => {
-    if (!newDz.contains(e.relatedTarget)) newDz.classList.remove('drag-over');
-  });
-  newDz.addEventListener('drop', async e => {
+    dz.classList.add('drag-over');
+  };
+  dz.ondragleave = e => {
+    dz.classList.remove('drag-over');
+  };
+  dz.ondrop = async e => {
     e.preventDefault();
-    newDz.classList.remove('drag-over');
+    dz.classList.remove('drag-over');
     const files = Array.from(e.dataTransfer.files);
     if (files.length) await handleIngestFiles(files);
-  });
+  };
 
   // ── File picker ───────────────────────────────────────────────
-  elements.ingestFileInput.addEventListener('change', async e => {
+  elements.ingestFileInput.onchange = async e => {
     const files = Array.from(e.target.files);
     if (files.length) await handleIngestFiles(files);
     e.target.value = '';  // allow re-selecting same file
-  });
+  };
 
   // ── Process inbox button ──────────────────────────────────────
   elements.btnProcessInbox.onclick = async () => {
@@ -913,8 +942,6 @@ async function loadIngestView() {
     result.style.display = 'none';
     showIngestConsole();
     await ingestInbox();
-    // Refresh UI after a small delay to ensure backend has settled
-    setTimeout(refreshUI, 500);
   };
 
   // ── Paste note button (Single-Click Ingest) ──────────────────
@@ -931,28 +958,20 @@ async function loadIngestView() {
 
     try {
       elements.ingestLog.innerHTML = '';
-      appendLog('Ingesting pasted note...', 'info');
+      appendLog('Connecting to AI ingestion stream...', 'info');
       const res = await fetch('/api/paste', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, title, date, ingestImmediate: true })
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to ingest pasted note');
+      await processIngestionStream(res, elements.btnSavePaste);
 
       elements.ingestPasteText.value = '';
       elements.ingestPasteTitle.value = '';
       elements.ingestPasteDate.value = '';
-      
-      showToast('Note ingested successfully');
-      appendLog('Note ingested successfully', 'success');
-      // For now, we just refresh everything.
-      await loadIngestView();
-      await refreshUI();
     } catch (err) {
       alert('Error: ' + err.message);
-    } finally {
       elements.btnSavePaste.disabled = false;
       elements.btnSavePaste.textContent = 'Save & Ingest';
     }
@@ -979,7 +998,7 @@ async function loadIngestView() {
     elements.ingestLog.innerHTML = '';
     btnSaveLink.disabled = true;
     btnSaveLink.textContent = 'Fetching...';
-    appendLog(`Fetching content from ${url}...`, 'info');
+    appendLog(`Connecting to AI ingestion stream for ${url}...`, 'info');
 
     try {
       const res = await fetch('/api/link', {
@@ -988,19 +1007,12 @@ async function loadIngestView() {
         body: JSON.stringify({ url, date, ingestImmediate: true })
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to ingest link');
+      await processIngestionStream(res, btnSaveLink);
 
       ingestLinkUrl.value = '';
       ingestLinkDate.value = '';
-      showToast('Link ingested successfully');
-      appendLog('Link ingested successfully', 'success');
-      
-      await loadIngestView();
-      await refreshUI();
     } catch (err) {
       alert('Error: ' + err.message);
-    } finally {
       btnSaveLink.disabled = false;
       btnSaveLink.textContent = 'Ingest Link';
     }
@@ -1094,23 +1106,17 @@ async function uploadFile(file) {
   return await res.json();
 }
 
-async function ingestInbox() {
-  if (state.isProcessing) return;
-  state.isProcessing = true;
-  
-  showIngestConsole();
-  elements.ingestLog.innerHTML = '';
-  elements.ingestResult.style.display = 'none';
-  if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = true;
-  
-  appendLog('Connecting to AI ingestion stream...', 'info');
-
+async function processIngestionStream(response, btnElement) {
+  let finalResult = null;
   try {
-    const response = await fetch('/api/ingest-inbox', { method: 'POST' });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Server returned ${response.status}: ${errText}`);
+    }
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let partial = '';
-    let finalResult = null;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -1133,20 +1139,66 @@ async function ingestInbox() {
       }
     }
 
-    if (finalResult && finalResult.processed > 0) {
-      showToast(`Successfully ingested ${finalResult.processed} note(s)!`);
-      setTimeout(refreshUI, 500);
-    } else if (finalResult && finalResult.total_in_inbox === 0) {
-      showToast('Inbox is empty.');
-    }
-
   } catch (err) {
+    console.error('Ingestion stream error:', err);
     appendLog('Stream Error: ' + err.message, 'error');
     showToast('Ingestion failed.');
   } finally {
     state.isProcessing = false;
-    if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = false;
+    if (btnElement) {
+      btnElement.disabled = false;
+      if (btnElement.id === 'btnSavePaste') btnElement.textContent = 'Save & Ingest';
+      if (btnElement.id === 'btnSaveLink') btnElement.textContent = 'Ingest Link';
+    }
+    
+    if (finalResult) {
+      if (finalResult.processed > 0) {
+        showToast(`Successfully ingested ${finalResult.processed} note(s)!`);
+      } else if (finalResult.total_in_inbox === 0) {
+        showToast('Inbox is empty.');
+      }
+    }
+    
     setTimeout(hideToast, 4000);
+    
+    console.log('Ingestion finished, triggering primary refresh...');
+    await new Promise(r => setTimeout(r, 1500));
+    await refreshUI();
+    
+    for (let i = 1; i <= 3; i++) {
+        const freshQueueCount = document.getElementById('queueCount');
+        const countText = freshQueueCount ? freshQueueCount.textContent : 'unknown';
+        if (countText !== '0 files') {
+            console.log(`[RETRY ${i}] Inbox still not empty (${countText}), refreshing again...`);
+            await new Promise(r => setTimeout(r, 2000));
+            await refreshUI();
+        } else {
+            console.log(`[SUCCESS] Inbox reported empty after ${i-1} retries.`);
+            break;
+        }
+    }
+  }
+}
+
+async function ingestInbox() {
+  if (state.isProcessing) return;
+  state.isProcessing = true;
+  
+  showIngestConsole();
+  elements.ingestLog.innerHTML = '';
+  elements.ingestResult.style.display = 'none';
+  if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = true;
+  
+  appendLog('Connecting to AI ingestion stream...', 'info');
+
+  try {
+    const response = await fetch('/api/ingest-inbox', { method: 'POST' });
+    await processIngestionStream(response, elements.btnProcessInbox);
+  } catch (err) {
+    console.error('ingestInbox error:', err);
+    appendLog('Network Error: ' + err.message, 'error');
+    state.isProcessing = false;
+    if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = false;
   }
 }
 
