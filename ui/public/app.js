@@ -65,7 +65,9 @@ const elements = {
   sourcesList: document.getElementById('sourcesList'),
   metaSection: document.getElementById('metaSection'),
   metaList: document.getElementById('metaList'),
-  infoWelcome: document.getElementById('infoWelcome'),
+  btnHelp: document.getElementById('btnHelp'),
+  helpModal: document.getElementById('helpModal'),
+  closeHelp: document.getElementById('closeHelp'),
   statsText: document.getElementById('statsText'),
   
   // Chat Elements
@@ -247,7 +249,6 @@ function renderNav(tree, container, depth = 0) {
 function renderPage(data) {
   elements.welcome.style.display = 'none';
   elements.pageView.style.display = 'block';
-  elements.infoWelcome.style.display = 'none';
 
   elements.pageTitle.textContent = data.frontmatter.title || data.path;
   elements.breadcrumb.textContent = data.path.split('/').slice(0, -1).join(' / ');
@@ -624,6 +625,31 @@ function setupEventListeners() {
   elements.btnArchive.addEventListener('click', archivePage);
   elements.btnSave.addEventListener('click', savePage);
   elements.btnCancel.addEventListener('click', () => setEditMode(false));
+  
+  // Help Modal
+  if (elements.btnHelp) {
+    elements.btnHelp.addEventListener('click', () => {
+      elements.helpModal.showModal();
+    });
+  }
+  if (elements.closeHelp) {
+    elements.closeHelp.addEventListener('click', () => {
+      elements.helpModal.close();
+    });
+  }
+  if (elements.helpModal) {
+    elements.helpModal.addEventListener('click', (e) => {
+      const dialogDimensions = elements.helpModal.getBoundingClientRect();
+      if (
+        e.clientX < dialogDimensions.left ||
+        e.clientX > dialogDimensions.right ||
+        e.clientY < dialogDimensions.top ||
+        e.clientY > dialogDimensions.bottom
+      ) {
+        elements.helpModal.close();
+      }
+    });
+  }
   // Ingestion (sidebar button still available as shortcut)
 
   // Ingest view drag/drop and file input are wired in loadIngestView()

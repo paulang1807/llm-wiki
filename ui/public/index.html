@@ -56,6 +56,11 @@
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
       </button>
+      <button class="view-btn" id="btnHelp" title="Quick Start Guide">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+        </svg>
+      </button>
       <div class="stats-pill" id="statsPill"><span id="statsText">— pages</span></div>
       <button class="view-btn ai-btn" id="btnAI" title="Ask AI Assistant">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -298,25 +303,6 @@
         <div class="info-label">PAGE INFO</div>
         <div id="metaList"></div>
       </div>
-      <div class="info-section info-welcome" id="infoWelcome">
-        <div class="info-label">QUICK START</div>
-        <div class="info-tip">
-          <span class="tip-icon">📖</span>
-          <div>Click any page in the sidebar to start reading</div>
-        </div>
-        <div class="info-tip">
-          <span class="tip-icon">🔍</span>
-          <div>Press <kbd>/</kbd> to search across all pages</div>
-        </div>
-        <div class="info-tip">
-          <span class="tip-icon">🔗</span>
-          <div>Click <span class="wikilink-sample">[[wikilinks]]</span> to navigate between pages</div>
-        </div>
-        <div class="info-tip">
-          <span class="tip-icon">🕸️</span>
-          <div>Use the graph view to explore connections</div>
-        </div>
-      </div>
     </aside>
     
     <!-- AI Chat Drawer -->
@@ -381,6 +367,31 @@
     </div>
 
   </div>
+
+  <dialog id="helpModal" class="modern-modal" style="width: 400px; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-dark); color: var(--text-main); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid var(--border);">
+      <h2 style="margin: 0; font-size: 1.1rem; font-weight: 600;">Quick Start Guide</h2>
+      <button id="closeHelp" class="icon-btn" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-dim);">&times;</button>
+    </div>
+    <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div class="info-tip" style="display: flex; gap: 12px; align-items: flex-start;">
+        <span class="tip-icon" style="font-size: 1.2rem;">📥</span>
+        <div style="font-size: 0.9rem; line-height: 1.4;"><b>Ingest Data:</b> Click the Inbox icon in the header to process files, paste text, or fetch URLs using AI.</div>
+      </div>
+      <div class="info-tip" style="display: flex; gap: 12px; align-items: flex-start;">
+        <span class="tip-icon" style="font-size: 1.2rem;">🔍</span>
+        <div style="font-size: 0.9rem; line-height: 1.4;"><b>Search:</b> Press <kbd style="background: var(--bg-sidebar); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px;">/</kbd> anywhere to search across your knowledge base.</div>
+      </div>
+      <div class="info-tip" style="display: flex; gap: 12px; align-items: flex-start;">
+        <span class="tip-icon" style="font-size: 1.2rem;">🔗</span>
+        <div style="font-size: 0.9rem; line-height: 1.4;"><b>Wikilinks:</b> Use <code style="background: var(--bg-sidebar); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-family: monospace;">[[Topic]]</code> in your notes to automatically link pages.</div>
+      </div>
+      <div class="info-tip" style="display: flex; gap: 12px; align-items: flex-start;">
+        <span class="tip-icon" style="font-size: 1.2rem;">🕸️</span>
+        <div style="font-size: 0.9rem; line-height: 1.4;"><b>Graph View:</b> Click the Graph icon in the header to visualize connections between your notes.</div>
+      </div>
+    </div>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

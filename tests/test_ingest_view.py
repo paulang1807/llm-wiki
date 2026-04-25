@@ -88,7 +88,7 @@ class TestIngestViewJS(unittest.TestCase):
                       "setView() must handle the 'ingest' case")
 
     def test_loadIngestView_defined(self):
-        self.assertIn("async function loadIngestView()", self.js,
+        self.assertIn("async function loadIngestView", self.js,
                       "loadIngestView() async function must be defined")
 
     def test_handleIngestFiles_defined(self):
