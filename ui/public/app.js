@@ -17,6 +17,26 @@ const state = {
   },
   isEditing: false
 };
+function appendLog(msg, type) {
+  if (!elements.ingestLog) return;
+  const div = document.createElement('div');
+  div.className = `log-entry ${type}`;
+  div.textContent = msg;
+  elements.ingestLog.appendChild(div);
+  elements.ingestLog.scrollTop = elements.ingestLog.scrollHeight;
+}
+
+function showIngestConsole() {
+  if (elements.ingestConsoleSection) {
+    elements.ingestConsoleSection.classList.add('visible');
+  }
+}
+
+function hideIngestConsole() {
+  if (elements.ingestConsoleSection) {
+    elements.ingestConsoleSection.classList.remove('visible');
+  }
+}
 
 // ── DOM Elements ──────────────────────────────────────────────
 
@@ -88,6 +108,8 @@ const elements = {
   statusToast: document.getElementById('statusToast'),
   statusText: document.getElementById('statusText'),
   ingestLog: document.getElementById('ingestLog'),
+  ingestConsoleSection: document.getElementById('ingestConsoleSection'),
+  btnCancelConsole: document.getElementById('btnCancelConsole'),
   ingestPasteText: document.getElementById('ingestPasteText'),
   ingestPasteTitle: document.getElementById('ingestPasteTitle'),
   ingestPasteDate: document.getElementById('ingestPasteDate'),
@@ -889,6 +911,7 @@ async function loadIngestView() {
   elements.btnProcessInbox.onclick = async () => {
     const result = elements.ingestResult;
     result.style.display = 'none';
+    showIngestConsole();
     await ingestInbox();
     // Refresh UI after a small delay to ensure backend has settled
     setTimeout(refreshUI, 500);
@@ -902,10 +925,13 @@ async function loadIngestView() {
     
     if (!content) return;
 
+    showIngestConsole();
     elements.btnSavePaste.disabled = true;
     elements.btnSavePaste.textContent = 'Ingesting...';
 
     try {
+      elements.ingestLog.innerHTML = '';
+      appendLog('Ingesting pasted note...', 'info');
       const res = await fetch('/api/paste', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -920,8 +946,7 @@ async function loadIngestView() {
       elements.ingestPasteDate.value = '';
       
       showToast('Note ingested successfully');
-      
-      // If the backend returns a stream URL or we want to show log, we handle it here.
+      appendLog('Note ingested successfully', 'success');
       // For now, we just refresh everything.
       await loadIngestView();
       await refreshUI();
@@ -950,8 +975,11 @@ async function loadIngestView() {
     const date = ingestLinkDate.value;
     if (!url) return;
 
+    showIngestConsole();
+    elements.ingestLog.innerHTML = '';
     btnSaveLink.disabled = true;
     btnSaveLink.textContent = 'Fetching...';
+    appendLog(`Fetching content from ${url}...`, 'info');
 
     try {
       const res = await fetch('/api/link', {
@@ -966,6 +994,7 @@ async function loadIngestView() {
       ingestLinkUrl.value = '';
       ingestLinkDate.value = '';
       showToast('Link ingested successfully');
+      appendLog('Link ingested successfully', 'success');
       
       await loadIngestView();
       await refreshUI();
@@ -981,6 +1010,11 @@ async function loadIngestView() {
     ingestLinkUrl.value = '';
     ingestLinkDate.value = '';
   };
+
+  // ── Console close button ──────────────────────────────────────
+  if (elements.btnCancelConsole) {
+    elements.btnCancelConsole.onclick = () => hideIngestConsole();
+  }
 }
 
 // ── Tab Switching ──────────────────────────────────────────
@@ -1064,20 +1098,11 @@ async function ingestInbox() {
   if (state.isProcessing) return;
   state.isProcessing = true;
   
+  showIngestConsole();
   elements.ingestLog.innerHTML = '';
-  elements.ingestLog.style.display = 'block';
   elements.ingestResult.style.display = 'none';
-  if (elements.btnProcessInbox) elements.btnProcessInbox.style.opacity = '0.5';
   if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = true;
   
-  const appendLog = (msg, type) => {
-    const div = document.createElement('div');
-    div.className = `log-entry ${type}`;
-    div.textContent = msg;
-    elements.ingestLog.appendChild(div);
-    elements.ingestLog.scrollTop = elements.ingestLog.scrollHeight;
-  };
-
   appendLog('Connecting to AI ingestion stream...', 'info');
 
   try {
@@ -1120,7 +1145,6 @@ async function ingestInbox() {
     showToast('Ingestion failed.');
   } finally {
     state.isProcessing = false;
-    if (elements.btnProcessInbox) elements.btnProcessInbox.style.opacity = '1';
     if (elements.btnProcessInbox) elements.btnProcessInbox.disabled = false;
     setTimeout(hideToast, 4000);
   }

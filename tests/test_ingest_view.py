@@ -238,7 +238,8 @@ class TestIngestViewCSS(unittest.TestCase):
                       "drag-over CSS class must be defined for visual drop feedback")
 
     def test_ingest_process_btn_styled(self):
-        self.assertIn(".modern-process-btn", self.css)
+        # The process button now uses the unified primary button style
+        self.assertIn(".modern-btn-primary", self.css)
 
     def test_file_btn_is_visible(self):
         # The button is now unified under .modern-btn and .modern-btn-primary
@@ -251,8 +252,8 @@ class TestIngestViewCSS(unittest.TestCase):
     def test_ingest_layout_is_flex_column(self):
         self.assertIn("flex-direction: column !important", self.css)
 
-    def test_ingest_footer_styled(self):
-        self.assertIn(".ingest-footer", self.css)
+    def test_ingest_console_styled(self):
+        self.assertIn(".ingest-console-section", self.css)
 
 
 if __name__ == '__main__':

@@ -1206,12 +1206,16 @@ kbd {
   border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  position: relative; /* Added to anchor the console */
 }
 
 .ingest-main {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: rgba(255, 255, 255, 0.01);
+  overflow-y: auto;
 }
 
 .ingest-header {
@@ -1534,12 +1538,13 @@ kbd {
 /* ── Ingest Queue Section ────────────────────────────────── */
 
 .ingest-queue-section {
-  flex: 1;
   display: flex;
   flex-direction: column;
   background: rgba(0, 0, 0, 0.05);
-  border-top: 1px solid var(--border);
-  min-height: 200px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-top: 30px;
+  min-height: 300px;
 }
 
 .queue-header {
@@ -1571,44 +1576,34 @@ kbd {
   align-content: start;
 }
 
-.ingest-footer {
-  padding: 30px 40px;
+.queue-actions {
+  padding: 0 40px 40px 40px;
+}
+
+.ingest-console-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 40px 30px 40px;
+  background: rgba(15, 17, 21, 0.95);
+  backdrop-filter: blur(20px);
   border-top: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.15);
-  display: flex;
+  display: none;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  z-index: 100;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  animation: consoleSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.modern-process-btn {
-  width: 100%;
-  background: #22c55e;
-  color: white;
-  border: none;
-  padding: 14px;
-  border-radius: 12px;
-  font-weight: 800;
-  font-size: 1rem;
+.ingest-console-section.visible {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.2);
 }
 
-.modern-process-btn:hover {
-  background: #16a34a;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.3);
-}
-
-.modern-process-btn:disabled {
-  background: var(--border);
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+@keyframes consoleSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .ingest-file-item {
@@ -1653,6 +1648,35 @@ kbd {
 
 /* ── Ingest Log Console ──────────────────────────────────── */
 
+.ingest-log-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  letter-spacing: 0.05em;
+}
+
+.console-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 8px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.console-close:hover {
+  color: var(--text-main);
+  transform: scale(1.1);
+}
+
+.ingest-log-header svg { color: var(--accent); }
+
 .ingest-log {
   background: var(--bg-dark);
   border: 1px solid var(--border);
@@ -1663,7 +1687,7 @@ kbd {
   color: #8b949e;
   max-height: 240px;
   overflow-y: auto;
-  margin-top: 16px;
+  margin-top: 8px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
