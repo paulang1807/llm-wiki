@@ -436,6 +436,47 @@ function renderGraph() {
       target: nodes.find(n => n.id === e.target)
     })).filter(e => e.source && e.target);
 
+    // Calculate connection count for nodes
+    nodes.forEach(n => n.connectionsCount = 0);
+    edges.forEach(e => {
+      e.source.connectionsCount++;
+      e.target.connectionsCount++;
+    });
+
+    // Populate Top Left Stats Overlay
+    const statsCounts = document.getElementById('graphStatsCounts');
+    if (statsCounts) {
+      statsCounts.innerHTML = `${nodes.length} pages &middot; ${edges.length} connections`;
+    }
+
+    // Populate Left Tags Legend
+    const uniqueTags = new Set();
+    nodes.forEach(n => {
+      if (n.tags && n.tags.length) {
+        n.tags.forEach(t => uniqueTags.add(t));
+      } else if (n.category) {
+        uniqueTags.add(n.category);
+      }
+    });
+
+    const legendContainer = document.getElementById('graphLegend');
+    if (legendContainer) {
+      if (uniqueTags.size > 0) {
+        legendContainer.innerHTML = '<div class="graph-legend-title">TAGS</div>';
+        Array.from(uniqueTags).sort().forEach(tag => {
+          legendContainer.innerHTML += `
+            <div class="legend-item">
+              <div class="dot" style="background: ${getCategoryColor(tag)}"></div>
+              <span>${tag}</span>
+            </div>
+          `;
+        });
+        legendContainer.style.display = 'block';
+      } else {
+        legendContainer.style.display = 'none';
+      }
+    }
+
     let transform = { x: W / 2, y: H / 2, k: 1 };
     let hoveredNode = null;
 
@@ -452,51 +493,51 @@ function renderGraph() {
       ctx.translate(transform.x, transform.y);
       ctx.scale(transform.k, transform.k);
 
-      // Edges
+      // Edges (straight, thin, subtle)
       edges.forEach(e => {
         const linked = hoveredNode && (e.source === hoveredNode || e.target === hoveredNode);
-        ctx.strokeStyle = linked ? '#58a6ff' : 'rgba(130,130,130,0.55)';
-        ctx.lineWidth   = linked ? 2 : 1.2;
+        ctx.strokeStyle = linked ? 'rgba(88, 166, 255, 0.5)' : 'rgba(130, 130, 130, 0.2)';
+        ctx.lineWidth   = linked ? 1.5 : 0.8;
+        
         ctx.beginPath();
         ctx.moveTo(e.source.x, e.source.y);
         ctx.lineTo(e.target.x, e.target.y);
         ctx.stroke();
-
-        // Arrow head at 70% of edge
-        if (transform.k > 0.4) drawArrow(e.source, e.target, linked);
       });
 
-      // Nodes
+      // Nodes (no labels)
       nodes.forEach(n => {
         const isHovered = n === hoveredNode;
         ctx.shadowBlur  = isHovered ? 14 : 0;
         ctx.shadowColor = '#58a6ff';
-        ctx.fillStyle   = getCategoryColor(n.category);
+        
+        let nodeTag = n.category;
+        if (n.tags && n.tags.length > 0) nodeTag = n.tags[0];
+        
+        ctx.fillStyle   = getCategoryColor(nodeTag);
         ctx.beginPath();
-        ctx.arc(n.x, n.y, isHovered ? 8 : 6, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, isHovered ? 8 : 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.shadowBlur  = 0;
-
-        // Label
-        if (transform.k > 0.7 || isHovered) {
-          ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(220,228,236,0.8)';
-          ctx.font      = isHovered ? 'bold 11px Inter, sans-serif' : '10px Inter, sans-serif';
-          ctx.fillText(n.title, n.x + 10, n.y + 4);
-        }
       });
 
       ctx.restore();
     }
 
-    function drawArrow(src, tgt, highlighted) {
-      const dx   = tgt.x - src.x;
-      const dy   = tgt.y - src.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 30) return;
-      const angle = Math.atan2(dy, dx);
-      const hl    = 8;
-      const ax    = src.x + dx * 0.7;
-      const ay    = src.y + dy * 0.7;
+    function drawArrow(src, tgt, cx, cy, highlighted) {
+      // Calculate point and tangent at t=0.6 on quadratic bezier
+      const t = 0.6;
+      const mt = 1 - t;
+      const ax = mt*mt*src.x + 2*mt*t*cx + t*t*tgt.x;
+      const ay = mt*mt*src.y + 2*mt*t*cy + t*t*tgt.y;
+      
+      // Derivative (tangent) at t=0.6
+      const tx = 2*mt*(cx - src.x) + 2*t*(tgt.x - cx);
+      const ty = 2*mt*(cy - src.y) + 2*t*(tgt.y - cy);
+      
+      const angle = Math.atan2(ty, tx);
+      const hl = 8;
+      
       ctx.strokeStyle = highlighted ? '#58a6ff' : 'rgba(130,130,130,0.55)';
       ctx.lineWidth   = highlighted ? 1.5 : 1;
       ctx.beginPath();
@@ -557,6 +598,32 @@ function renderGraph() {
         return Math.sqrt(dx * dx + dy * dy) < 10;
       }) || null;
       cvs.style.cursor = hoveredNode ? 'pointer' : 'grab';
+      
+      const tooltip = document.getElementById('graphTooltip');
+      if (tooltip) {
+        if (hoveredNode) {
+          const tags = hoveredNode.tags && hoveredNode.tags.length > 0 
+            ? hoveredNode.tags 
+            : (hoveredNode.category ? [hoveredNode.category] : []);
+            
+          const tagsHtml = tags.map(t => `<span class="graph-tooltip-tag">${t}</span>`).join('');
+          
+          tooltip.innerHTML = `
+            <div class="graph-tooltip-title">${hoveredNode.title}</div>
+            ${tagsHtml ? `<div class="graph-tooltip-tags">${tagsHtml}</div>` : ''}
+            <div class="graph-tooltip-meta">${hoveredNode.connectionsCount} connection${hoveredNode.connectionsCount === 1 ? '' : 's'}</div>
+            ${hoveredNode.snippet ? `<div class="graph-tooltip-snippet">${hoveredNode.snippet}</div>` : ''}
+            <div class="graph-tooltip-footer">Click to select &middot; Right-click to open</div>
+          `;
+          
+          // Position relative to mouse
+          tooltip.style.left = e.clientX + 'px';
+          tooltip.style.top = e.clientY + 'px';
+          tooltip.style.display = 'block';
+        } else {
+          tooltip.style.display = 'none';
+        }
+      }
     }, { signal: sig });
 
     cvs.addEventListener('click', () => {

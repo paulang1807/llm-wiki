@@ -177,14 +177,22 @@ class WikiEngine:
                 if not entry.name.endswith('.md'): continue
                 try:
                     content = entry.read_text(encoding='utf-8')
-                    fm, _ = self.parse_frontmatter(content, file_path=str(entry))
+                    fm, body = self.parse_frontmatter(content, file_path=str(entry))
                     node_id = str(entry.relative_to(base_dir)).replace('\\', '/')
+                    snippet = body[:120].replace('\n', ' ').strip()
+                    if len(body) > 120: snippet += '...'
+
+                    tags = fm.get('tags', [])
+                    if isinstance(tags, str): tags = [tags]
+
                     nodes.append({
                         "id": node_id,
                         "title": fm.get('title', entry.stem),
                         "category": fm.get('category', 'meta'),
                         "confidence": fm.get('confidence', 0.8),
-                        "stale": fm.get('stale', False)
+                        "stale": fm.get('stale', False),
+                        "tags": tags,
+                        "snippet": snippet
                     })
                     # Extract targets from multiple sources
                     targets = []

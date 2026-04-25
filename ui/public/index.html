@@ -150,8 +150,13 @@
       <!-- Graph view -->
       <div class="graph-view" id="graphView" style="display:none">
         <canvas id="graphCanvas"></canvas>
+        <div class="graph-stats-overlay" id="graphStatsOverlay">
+          <div class="graph-stats-title">KNOWLEDGE GRAPH</div>
+          <div class="graph-stats-counts" id="graphStatsCounts">0 pages &middot; 0 connections</div>
+        </div>
         <div class="graph-legend" id="graphLegend"></div>
-        <div class="graph-tooltip" id="graphTooltip"></div>
+        <div class="graph-tooltip" id="graphTooltip" style="display:none;"></div>
+        <div class="graph-footer-hint">Click to select &middot; Right-click to open &middot; Scroll to zoom &middot; Drag to pan</div>
       </div>
 
       <!-- Ingest view -->
