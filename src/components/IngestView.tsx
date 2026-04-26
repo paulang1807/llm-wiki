@@ -46,20 +46,30 @@ export default function IngestView() {
         <div className="ingest-content">
           {activeTab === 'upload' && (
             <div className="ingest-section">
+              <div className="section-header">
+                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Upload Documents</h2>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The AI will parse your files and extract structured knowledge.</p>
+              </div>
               <div className="dropzone">
-                <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: '3rem', color: 'var(--accent)', marginBottom: '16px' }}></i>
-                <h3>Drag & Drop Files Here</h3>
-                <p>Supports .pdf, .md, .txt, .docx, .html</p>
-                <button className="action-btn btn-primary" style={{ marginTop: '16px' }}>Select Files</button>
+                <i className="fa-solid fa-file-pdf" style={{ fontSize: '3rem', color: 'var(--accent)', marginBottom: '16px', opacity: 0.8 }}></i>
+                <h3>Drag & Drop Files</h3>
+                <p style={{ opacity: 0.6 }}>Supports PDF, Markdown, TXT, and DOCX</p>
+                <button className="action-btn btn-primary" style={{ marginTop: '24px', width: 'auto', padding: '12px 32px' }}>
+                  <i className="fa-solid fa-plus" style={{ marginRight: '8px' }}></i> Select Files
+                </button>
               </div>
             </div>
           )}
 
           {activeTab === 'paste' && (
             <div className="ingest-section">
+              <div className="section-header">
+                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Quick Note</h2>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Perfect for meetings, thoughts, or quick snippets of information.</p>
+              </div>
               <textarea 
                 className="paste-area" 
-                placeholder="Paste your notes or text here..." 
+                placeholder="Type or paste your notes here... The AI will automatically categorize and link them." 
                 value={text} 
                 onChange={e => setText(e.target.value)}
               />
@@ -67,38 +77,61 @@ export default function IngestView() {
                 className="action-btn btn-primary" 
                 onClick={() => handleIngest('paste', { text })}
                 disabled={!text || isIngesting}
+                style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
-                {isIngesting ? 'Ingesting...' : 'Ingest Note'}
+                {isIngesting ? <><i className="fa-solid fa-spinner fa-spin"></i> Ingesting...</> : <><i className="fa-solid fa-bolt"></i> Ingest Note</>}
               </button>
             </div>
           )}
 
           {activeTab === 'link' && (
             <div className="ingest-section">
-              <input 
-                type="text" 
-                className="link-input" 
-                placeholder="https://example.com/article" 
-                value={url} 
-                onChange={e => setUrl(e.target.value)}
-              />
+              <div className="section-header">
+                <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Add Link</h2>
+                <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The assistant will scrape the content and index it for your wiki.</p>
+              </div>
+              <div style={{ position: 'relative' }}>
+                <i className="fa-solid fa-globe" style={{ position: 'absolute', left: '20px', top: '22px', color: 'var(--text-dim)' }}></i>
+                <input 
+                  type="text" 
+                  className="link-input" 
+                  placeholder="https://example.com/article" 
+                  value={url} 
+                  onChange={e => setUrl(e.target.value)}
+                  style={{ paddingLeft: '50px' }}
+                />
+              </div>
               <button 
                 className="action-btn btn-primary" 
                 onClick={() => handleIngest('link', { url })}
                 disabled={!url || isIngesting}
+                style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
-                {isIngesting ? 'Ingesting...' : 'Ingest Link'}
+                {isIngesting ? <><i className="fa-solid fa-spinner fa-spin"></i> Ingesting...</> : <><i className="fa-solid fa-link"></i> Ingest Link</>}
               </button>
             </div>
           )}
         </div>
 
         {log.length > 0 && (
-          <div className="ingest-console" style={{ marginTop: '24px', background: 'var(--bg-dark)', padding: '16px', borderRadius: '8px' }}>
-            <div style={{ color: 'var(--text-dim)', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>CONSOLE</div>
-            {log.map((line, i) => (
-              <div key={i} style={{ fontSize: '0.8rem', fontFamily: 'var(--font-mono)', marginBottom: '4px' }}>{line}</div>
-            ))}
+          <div className="ingest-console">
+            <div className="console-header">
+              <div className="console-dot" style={{ background: '#ff5f56' }}></div>
+              <div className="console-dot" style={{ background: '#ffbd2e' }}></div>
+              <div className="console-dot" style={{ background: '#27c93f' }}></div>
+              <span style={{ marginLeft: '12px', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.1em', opacity: 0.5 }}>INGESTION CONSOLE</span>
+              <button 
+                onClick={() => setLog([])} 
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: '0.7rem', cursor: 'pointer' }}
+              >
+                CLEAR
+              </button>
+            </div>
+            <div className="console-body">
+              {log.map((line, i) => (
+                <div key={i}><span style={{ opacity: 0.4, marginRight: '8px' }}>$</span> {line}</div>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -8,7 +8,7 @@ interface PageViewProps {
   onClose: () => void;
 }
 
-export default function PageView({ filePath }: PageViewProps) {
+export default function PageView({ filePath, onRefresh, onClose }: PageViewProps) {
   const [content, setContent] = useState<string>('');
   const [frontmatter, setFrontmatter] = useState<any>({});
   const [isLoading, setIsLoading] = useState(true);
