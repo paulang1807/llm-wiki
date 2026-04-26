@@ -1,29 +1,54 @@
-# OS artifacts
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
-*.DS_Store
+*.pem
 
-# Python
-__pycache__/
-*.py[cod]
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Environment / secrets
-.env
+# env files (can opt-in for committing if needed)
+.env*
 
-# Raw source documents (user content — not checked in)
-# Ignore all files in raw/ but allow the directory stubs (.gitkeep files)
-raw/*
-!raw/.gitkeep
-!raw/inbox/
-raw/inbox/*
-!raw/inbox/.gitkeep
+# vercel
+.vercel
 
-# Ingested wiki content (AI-generated — not checked in)
-# Only the empty .gitkeep stub is tracked to preserve the directory
-wiki/*
-!wiki/.gitkeep
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# Archive (generated — not checked in)
-archive/
+# User Data
+/wiki/*
+!/wiki/.gitkeep
+/raw/*
+!/raw/.gitkeep
+/archive/*
+!/archive/.gitkeep
+/notes/*
+!/notes/.gitkeep
+/tmp/
 
-# Python Virtual Environment
-.venv/
+
