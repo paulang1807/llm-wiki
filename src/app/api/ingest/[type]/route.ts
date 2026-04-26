@@ -10,6 +10,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ typ
   
   try {
     const data = await request.json();
+    const { title, date } = data;
+    const ingestDate = date || new Date().toISOString().split('T')[0];
     
     // Simplistic ingestion for now, just to have parity
     let content = "";
@@ -19,19 +21,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ typ
       content = `Extracted content from link: ${data.url}`;
     }
 
-    const systemPrompt = `You are an AI organizing notes into a wiki. Output valid markdown with frontmatter.`;
+    const systemPrompt = `You are an AI organizing notes into a wiki. 
+Output valid markdown with frontmatter.
+IMPORTANT: 
+- Use the title: "${title || "Untitled"}" if provided, otherwise create a good one.
+- Use the date: "${ingestDate}" in the frontmatter.
+- Categorize the note appropriately.`;
+
     const userPrompt = `Process this text:\n\n${content}`;
     
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_API_KEY;
+    const modelName = process.env.DEFAULT_MODEL || "gemini-2.0-flash";
     let resultText = "";
     if (apiKey) {
-      resultText = await callGemini(systemPrompt, userPrompt, apiKey);
+      resultText = await callGemini(systemPrompt, userPrompt, apiKey, modelName);
     } else {
       resultText = await callOllama(systemPrompt, userPrompt);
     }
 
     // Save to inbox or directly
-    const filename = `ingested-${Date.now()}.md`;
+    const filename = `${title ? title.toLowerCase().replace(/\s+/g, '-') : 'ingested'}-${Date.now()}.md`;
     const fullPath = path.join(WIKI_DIR, 'Inbox', filename);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, resultText, 'utf-8');

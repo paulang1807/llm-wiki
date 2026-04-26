@@ -4,6 +4,8 @@ export default function IngestView() {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste' | 'link'>('upload');
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState('');
   const [isIngesting, setIsIngesting] = useState(false);
   const [log, setLog] = useState<string[]>([]);
 
@@ -67,6 +69,31 @@ export default function IngestView() {
                 <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Quick Note</h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Perfect for meetings, thoughts, or quick snippets of information.</p>
               </div>
+              <div className="metadata-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '8px' }}>
+                <div className="input-group">
+                  <label htmlFor="paste-title" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>TITLE (OPTIONAL)</label>
+                  <input 
+                    id="paste-title"
+                    type="text" 
+                    className="link-input" 
+                    placeholder="Note title..." 
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)}
+                    style={{ padding: '12px 16px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label htmlFor="paste-date" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>DATE (OPTIONAL)</label>
+                  <input 
+                    id="paste-date"
+                    type="date" 
+                    className="link-input" 
+                    value={date} 
+                    onChange={e => setDate(e.target.value)}
+                    style={{ padding: '12px 16px', fontSize: '0.9rem' }}
+                  />
+                </div>
+              </div>
               <textarea 
                 className="paste-area" 
                 placeholder="Type or paste your notes here... The AI will automatically categorize and link them." 
@@ -75,7 +102,7 @@ export default function IngestView() {
               />
               <button 
                 className="action-btn btn-primary" 
-                onClick={() => handleIngest('paste', { text })}
+                onClick={() => handleIngest('paste', { text, title, date })}
                 disabled={!text || isIngesting}
                 style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
@@ -90,6 +117,31 @@ export default function IngestView() {
                 <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Add Link</h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The assistant will scrape the content and index it for your wiki.</p>
               </div>
+              <div className="metadata-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '8px' }}>
+                <div className="input-group">
+                  <label htmlFor="link-title" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>TITLE (OPTIONAL)</label>
+                  <input 
+                    id="link-title"
+                    type="text" 
+                    className="link-input" 
+                    placeholder="Page title..." 
+                    value={title} 
+                    onChange={e => setTitle(e.target.value)}
+                    style={{ padding: '12px 16px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label htmlFor="link-date" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>DATE (OPTIONAL)</label>
+                  <input 
+                    id="link-date"
+                    type="date" 
+                    className="link-input" 
+                    value={date} 
+                    onChange={e => setDate(e.target.value)}
+                    style={{ padding: '12px 16px', fontSize: '0.9rem' }}
+                  />
+                </div>
+              </div>
               <div style={{ position: 'relative' }}>
                 <i className="fa-solid fa-globe" style={{ position: 'absolute', left: '20px', top: '22px', color: 'var(--text-dim)' }}></i>
                 <input 
@@ -103,7 +155,7 @@ export default function IngestView() {
               </div>
               <button 
                 className="action-btn btn-primary" 
-                onClick={() => handleIngest('link', { url })}
+                onClick={() => handleIngest('link', { url, title, date })}
                 disabled={!url || isIngesting}
                 style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
