@@ -40,15 +40,25 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
     }
   }, []);
 
-  // Category Colors
+  // Dynamic Color Generator
   const getCategoryColor = (cat: string) => {
     const colors: Record<string, string> = {
-      intuit: '#58a6ff', databricks: '#3fb950', mlops: '#ff7b72',
-      feature_selection: '#d2a8ff', mape: '#e3b341', xgboost: '#1f6feb',
-      forecasting: '#238636', qliksense: '#bc8cff'
+      intuit: '#00d1ff', 
+      databricks: '#ff3621', 
+      mlops: '#10b981',
+      qliksense: '#8b5cf6'
     };
-    if (!cat) return '#8b949e';
-    return colors[cat.toLowerCase()] || '#8b949e';
+    
+    if (!cat) return '#94a3b8';
+    const lowerCat = cat.toLowerCase();
+    if (colors[lowerCat]) return colors[lowerCat];
+    
+    // Hash-based color for unknown categories
+    let hash = 0;
+    for (let i = 0; i < lowerCat.length; i++) {
+      hash = lowerCat.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return `hsl(${Math.abs(hash % 360)}, 70%, 60%)`;
   };
 
   const uniqueTags = new Set<string>();
@@ -61,8 +71,14 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
     setHoverNode(node);
   }, []);
 
+  const centerGraph = () => {
+    if (graphRef.current) {
+      graphRef.current.zoomToFit(400, 50);
+    }
+  };
+
   return (
-    <div className="graph-view" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className="graph-view" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       <ForceGraph2D
         ref={graphRef}
         width={dimensions.width}
@@ -72,59 +88,101 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
         nodeLabel=""
         onNodeHover={handleNodeHover}
         onNodeClick={(node) => onSelectNode(node.id)}
-        backgroundColor="#0d1117"
+        backgroundColor="transparent"
         linkColor={(link) => {
           const isLinked = hoverNode && (link.source.id === hoverNode.id || link.target.id === hoverNode.id);
-          return isLinked ? 'rgba(88, 166, 255, 0.5)' : 'rgba(130, 130, 130, 0.2)';
+          return isLinked ? 'rgba(0, 209, 255, 0.4)' : 'rgba(255, 255, 255, 0.05)';
         }}
         linkWidth={(link) => {
           const isLinked = hoverNode && (link.source.id === hoverNode.id || link.target.id === hoverNode.id);
-          return isLinked ? 1.5 : 0.8;
+          return isLinked ? 2 : 1;
         }}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
           const isHovered = node === hoverNode;
-          let nodeTag = node.category;
-          if (node.tags && node.tags.length > 0) nodeTag = node.tags[0];
-          
-          ctx.fillStyle = getCategoryColor(nodeTag);
+          const label = node.title;
+          const fontSize = 12 / globalScale;
+          const radius = (node.connectionsCount ? 5 + Math.sqrt(node.connectionsCount) * 2 : 5) / (globalScale < 1 ? 1 : Math.sqrt(globalScale));
+          const color = getCategoryColor(node.category || (node.tags && node.tags[0]));
+
+          // Glow effect
+          if (isHovered) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+          }
+
+          ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, isHovered ? 8 : 5, 0, 2 * Math.PI, false);
+          ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
           ctx.fill();
+
+          // Reset shadow
+          ctx.shadowBlur = 0;
+
+          // Labels
+          if (globalScale > 1.5 || isHovered) {
+            ctx.font = `${fontSize}px Inter, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = isHovered ? '#fff' : 'rgba(255, 255, 255, 0.6)';
+            ctx.fillText(label, node.x, node.y + radius + 2);
+          }
         }}
+        nodeCanvasObjectMode={() => 'replace'}
       />
 
-      <div className="graph-stats-overlay">
+      <div className="graph-controls">
+        <button className="graph-control-btn" onClick={centerGraph} title="Center Graph">
+          <i className="fa-solid fa-expand"></i>
+        </button>
+      </div>
+
+      <div className="graph-stats-overlay animate-up">
         <div className="graph-stats-title">KNOWLEDGE GRAPH</div>
-        <div className="graph-stats-counts">{graphData.nodes.length} pages &middot; {graphData.links.length} connections</div>
+        <div className="graph-stats-counts">{graphData.nodes.length} nodes &middot; {graphData.links.length} connections</div>
       </div>
 
       {uniqueTags.size > 0 && (
-        <div className="graph-legend" style={{ display: 'block' }}>
-          <div className="graph-legend-title">TAGS</div>
-          {Array.from(uniqueTags).sort().map(tag => (
-            <div key={tag} className="legend-item">
-              <div className="dot" style={{ background: getCategoryColor(tag) }}></div>
-              <span>{tag}</span>
-            </div>
-          ))}
+        <div className="graph-legend animate-fade">
+          <div className="graph-legend-title">LEGEND</div>
+          <div className="legend-items">
+            {Array.from(uniqueTags).sort().map(tag => (
+              <div key={tag} className="legend-item">
+                <div className="dot" style={{ background: getCategoryColor(tag) }}></div>
+                <span>{tag}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {hoverNode && (
-        <div className="graph-tooltip" style={{ display: 'block', top: hoverNode.y + 20, left: hoverNode.x + 20 }}>
+        <div className="graph-tooltip" style={{ 
+          top: '20px', 
+          right: '20px', 
+          left: 'auto', 
+          transform: 'none',
+          display: 'block',
+          width: '300px'
+        }}>
           <div className="graph-tooltip-title">{hoverNode.title}</div>
           <div className="graph-tooltip-tags">
             {(hoverNode.tags?.length ? hoverNode.tags : (hoverNode.category ? [hoverNode.category] : [])).map((t: string) => (
-              <span key={t} className="graph-tooltip-tag">{t}</span>
+              <span key={t} className="graph-tooltip-tag" style={{ background: getCategoryColor(t) + '22', color: getCategoryColor(t) }}>{t}</span>
             ))}
           </div>
-          <div className="graph-tooltip-meta">{hoverNode.connectionsCount} connection{hoverNode.connectionsCount !== 1 ? 's' : ''}</div>
+          <div className="graph-tooltip-meta">
+            <i className="fa-solid fa-link"></i> {hoverNode.connectionsCount} connection{hoverNode.connectionsCount !== 1 ? 's' : ''}
+          </div>
           {hoverNode.snippet && <div className="graph-tooltip-snippet">{hoverNode.snippet}</div>}
-          <div className="graph-tooltip-footer">Click to select &middot; Right-click to open</div>
+          <div className="graph-tooltip-footer">Click to navigate</div>
         </div>
       )}
       
-      <div className="graph-footer-hint">Click to select &middot; Scroll to zoom &middot; Drag to pan</div>
+      <div className="graph-footer-hint">
+        <span><i className="fa-solid fa-mouse"></i> Drag to pan</span>
+        <span><i className="fa-solid fa-arrows-up-down"></i> Scroll to zoom</span>
+        <span><i className="fa-solid fa-hand-pointer"></i> Click to open</span>
+      </div>
     </div>
   );
 }
