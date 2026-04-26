@@ -66,6 +66,13 @@ export default function Sidebar({ isOpen, onToggle, onSelectFile, currentFile, t
   return (
     <aside className="sidebar" style={{ display: isOpen ? 'block' : 'none' }}>
       <div className="sidebar-section">
+        <div className="sidebar-label">Tools</div>
+        <div className={`nav-item ${currentFile === '__health__' ? 'active' : ''}`} onClick={() => onSelectFile('__health__')}>
+          <i className="fa-solid fa-heart-pulse"></i> Knowledge Health
+        </div>
+      </div>
+
+      <div className="sidebar-section">
         <div className="sidebar-label">KNOWLEDGE BASE</div>
         <div className="nav-tree">
           {renderTree(tree)}

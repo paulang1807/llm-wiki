@@ -262,3 +262,201 @@ export async function getRagContext(query: string) {
   }
   return context;
 }
+
+export interface HealthIssue {
+  id: string;
+  type: 'broken_link' | 'orphan' | 'stale' | 'missing_title' | 'empty_content' | 'untagged' | 'duplicate_title' | 'tag_inconsistency' | 'missing_connection';
+  severity: 'high' | 'medium' | 'low';
+  message: string;
+  file: string;
+  details?: any;
+  fixable: boolean;
+}
+
+export async function performHealthCheck(): Promise<HealthIssue[]> {
+  const issues: HealthIssue[] = [];
+  const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
+  const titles = Object.keys(index).filter(k => k === index[k as any]); // This is not quite right, index maps title to path
+  
+  // Correctly get unique titles and paths
+  const titleToPaths: Record<string, string[]> = {};
+  for (const [title, path] of Object.entries(index)) {
+    if (!titleToPaths[title.toLowerCase()]) titleToPaths[title.toLowerCase()] = [];
+    if (!titleToPaths[title.toLowerCase()].includes(path)) {
+      titleToPaths[title.toLowerCase()].push(path);
+    }
+  }
+
+  const filePaths = Array.from(new Set(Object.values(index)));
+  const incomingLinks: Record<string, number> = {};
+  const fileTags: Record<string, string[]> = {};
+  filePaths.forEach(p => incomingLinks[p] = 0);
+
+  const STALE_THRESHOLD_MS = 90 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  
+  const allTags: Record<string, string[]> = {}; // lowercase -> original
+
+  async function checkFile(fullPath: string) {
+    const relPath = path.relative(WIKI_DIR, fullPath).replace(/\\/g, '/');
+    const stats = await fs.stat(fullPath);
+    const content = await fs.readFile(fullPath, 'utf-8');
+    const { data, content: body } = matter(content);
+
+    const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
+    fileTags[relPath] = tags;
+
+    // 1. Stale
+    if (now - stats.mtimeMs > STALE_THRESHOLD_MS && !data.stale) {
+      issues.push({ id: `stale-${relPath}`, type: 'stale', severity: 'low', message: `Stale content.`, file: relPath, fixable: true });
+    }
+
+    // 2. Empty
+    if (body.trim().length < 50) {
+      issues.push({ id: `empty-${relPath}`, type: 'empty_content', severity: 'medium', message: `Empty or very short content.`, file: relPath, fixable: false });
+    }
+
+    // 3. Title
+    if (!data.title) {
+      issues.push({ id: `title-${relPath}`, type: 'missing_title', severity: 'medium', message: `Missing frontmatter title.`, file: relPath, details: { suggested: path.basename(relPath, '.md') }, fixable: true });
+    }
+
+    // 4. Untagged
+    if (tags.length === 0) {
+      issues.push({ id: `untagged-${relPath}`, type: 'untagged', severity: 'low', message: `Page has no tags.`, file: relPath, fixable: true });
+    } else {
+      tags.forEach((t: string) => {
+        const lower = t.toLowerCase();
+        if (!allTags[lower]) allTags[lower] = [];
+        if (!allTags[lower].includes(t)) allTags[lower].push(t);
+      });
+    }
+
+    // 5. Broken Links & Incoming Links
+    const wikiLinkRegex = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+    let match;
+    const linkedInFile = new Set<string>();
+    while ((match = wikiLinkRegex.exec(content)) !== null) {
+      const target = match[1].trim();
+      let targetPath = index[target] || index[target.toLowerCase()];
+      if (targetPath) {
+        incomingLinks[targetPath] = (incomingLinks[targetPath] || 0) + 1;
+        linkedInFile.add(target.toLowerCase());
+      } else {
+        issues.push({ id: `broken-${relPath}-${target}`, type: 'broken_link', severity: 'high', message: `Broken link to [[${target}]]`, file: relPath, fixable: false });
+      }
+    }
+
+    // 6. Missing Connections (Potential Links)
+    for (const title of Object.keys(index)) {
+      if (title.length < 4) continue; // Skip very short titles
+      if (linkedInFile.has(title.toLowerCase())) continue;
+      if (data.title?.toLowerCase() === title.toLowerCase()) continue;
+
+      const titleRegex = new RegExp(`\\b${title}\\b`, 'i');
+      if (titleRegex.test(body)) {
+        issues.push({
+          id: `conn-${relPath}-${title}`,
+          type: 'missing_connection',
+          severity: 'low',
+          message: `Potential missing connection to "[[${title}]]"`,
+          file: relPath,
+          details: { suggestedLink: title },
+          fixable: false
+        });
+      }
+    }
+  }
+
+  async function walk(dir: string) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) await walk(fullPath);
+      else if (entry.name.endsWith('.md')) await checkFile(fullPath);
+    }
+  }
+
+  await walk(WIKI_DIR);
+
+  // 7. Orphans
+  for (const [filePath, count] of Object.entries(incomingLinks)) {
+    if (count === 0 && !filePath.toLowerCase().includes('index')) {
+      issues.push({ id: `orphan-${filePath}`, type: 'orphan', severity: 'medium', message: `Orphaned note.`, file: filePath, fixable: true });
+    }
+  }
+
+  // 8. Duplicates
+  for (const [title, paths] of Object.entries(titleToPaths)) {
+    if (paths.length > 1) {
+      paths.forEach(p => {
+        issues.push({ id: `dup-${p}`, type: 'duplicate_title', severity: 'medium', message: `Duplicate title "${title}" shared with ${paths.filter(x => x !== p).length} other(s).`, file: p, fixable: false });
+      });
+    }
+  }
+
+  // 9. Tag Inconsistencies
+  for (const [lower, originals] of Object.entries(allTags)) {
+    if (originals.length > 1) {
+      issues.push({ id: `tag-inc-${lower}`, type: 'tag_inconsistency', severity: 'low', message: `Inconsistent tag casing: ${originals.join(', ')}`, file: 'N/A', details: { tags: originals }, fixable: false });
+    }
+  }
+
+  return issues;
+}
+
+export async function repairHealthIssue(issue: HealthIssue) {
+  if (issue.file === 'N/A') return { success: false, message: "Cannot auto-repair global issues." };
+  const fullPath = path.join(WIKI_DIR, issue.file);
+  const content = await fs.readFile(fullPath, 'utf-8');
+  const { data, content: body } = matter(content);
+
+  switch (issue.type) {
+    case 'stale': 
+      data.stale = true; 
+      break;
+    case 'missing_title': 
+      data.title = issue.details?.suggested || path.basename(issue.file, '.md'); 
+      break;
+    case 'orphan': {
+      // Actually try to find links to this file in other files
+      const title = data.title || path.basename(issue.file, '.md');
+      const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
+      let foundAny = false;
+      
+      for (const [otherTitle, otherPath] of Object.entries(index)) {
+        if (otherPath === issue.file) continue;
+        const otherFullPath = path.join(WIKI_DIR, otherPath);
+        const otherContent = await fs.readFile(otherFullPath, 'utf-8');
+        const { data: otherData, content: otherBody } = matter(otherContent);
+        
+        const titleRegex = new RegExp(`(?<!\\[\\[)\\b${title}\\b(?!\\]\\])`, 'gi');
+        if (titleRegex.test(otherBody)) {
+          const newOtherBody = otherBody.replace(titleRegex, `[[${title}]]`);
+          await fs.writeFile(otherFullPath, matter.stringify(newOtherBody, otherData), 'utf-8');
+          foundAny = true;
+        }
+      }
+      
+      if (!foundAny) {
+        // Tag it as needs-linking but return a message
+        data.tags = Array.from(new Set([...(data.tags || []), 'needs-linking']));
+        await fs.writeFile(fullPath, matter.stringify(body, data), 'utf-8');
+        return { 
+          success: false, 
+          message: `No mentions of "${title}" found in other notes. The issue will remain until related content is ingested and links can be synthesized.` 
+        };
+      }
+      break;
+    }
+    case 'untagged': 
+      data.tags = ['needs-tagging']; 
+      break;
+    default: 
+      throw new Error(`Auto-repair not implemented for ${issue.type}`);
+  }
+
+  await fs.writeFile(fullPath, matter.stringify(body, data), 'utf-8');
+  return { success: true };
+}

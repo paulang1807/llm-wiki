@@ -7,11 +7,12 @@ import IngestView from "@/components/IngestView";
 import WelcomeView from "@/components/WelcomeView";
 import Header from "@/components/Header";
 import ChatDrawer from "@/components/ChatDrawer";
+import HealthView from "@/components/HealthView";
 import dynamic from 'next/dynamic';
 
 const GraphView = dynamic(() => import('@/components/GraphView'), { ssr: false });
 
-export type ViewType = 'welcome' | 'read' | 'graph' | 'ingest';
+export type ViewType = 'welcome' | 'read' | 'graph' | 'ingest' | 'health';
 
 export default function App() {
   const [view, setView] = useState<ViewType>('welcome');
@@ -20,6 +21,11 @@ export default function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const loadPage = (path: string) => {
+    if (path === '__health__') {
+      setView('health');
+      setCurrentFile('__health__');
+      return;
+    }
     setCurrentFile(path);
     setView('read');
   };
@@ -65,6 +71,7 @@ export default function App() {
           )}
           {view === 'graph' && <GraphView onSelectNode={loadPage} />}
           {view === 'ingest' && <IngestView />}
+          {view === 'health' && <HealthView />}
         </main>
       </div>
 
