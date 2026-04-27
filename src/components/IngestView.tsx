@@ -52,13 +52,66 @@ export default function IngestView() {
                 <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Upload Documents</h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The AI will parse your files and extract structured knowledge.</p>
               </div>
-              <div className="dropzone">
+              <div 
+                className="dropzone"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const files = Array.from(e.dataTransfer.files);
+                  if (files.length > 0) {
+                    const formData = new FormData();
+                    files.forEach(f => formData.append('files', f));
+                    
+                    setIsIngesting(true);
+                    setLog(prev => [...prev, `Uploading ${files.length} file(s)...`]);
+                    try {
+                      const res = await fetch('/api/ingest/upload', {
+                        method: 'POST',
+                        body: formData
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      data.results.forEach((r: any) => setLog(prev => [...prev, `Processed: ${r.title} -> ${r.file}`]));
+                    } catch (err: any) {
+                      setLog(prev => [...prev, `Error: ${err.message}`]);
+                    }
+                    setIsIngesting(false);
+                  }
+                }}
+              >
                 <i className="fa-solid fa-file-pdf" style={{ fontSize: '3rem', color: 'var(--accent)', marginBottom: '16px', opacity: 0.8 }}></i>
                 <h3>Drag & Drop Files</h3>
-                <p style={{ opacity: 0.6 }}>Supports PDF, Markdown, TXT, and DOCX</p>
-                <button className="action-btn btn-primary" style={{ marginTop: '24px', width: 'auto', padding: '12px 32px' }}>
+                <p style={{ opacity: 0.6 }}>Supports PDF, Markdown, TXT, and Images</p>
+                <label className="action-btn btn-primary" style={{ marginTop: '24px', width: 'auto', padding: '12px 32px', cursor: 'pointer' }}>
                   <i className="fa-solid fa-plus" style={{ marginRight: '8px' }}></i> Select Files
-                </button>
+                  <input 
+                    type="file" 
+                    multiple 
+                    style={{ display: 'none' }} 
+                    onChange={async (e) => {
+                      if (e.target.files) {
+                        const files = Array.from(e.target.files);
+                        const formData = new FormData();
+                        files.forEach(f => formData.append('files', f));
+                        
+                        setIsIngesting(true);
+                        setLog(prev => [...prev, `Uploading ${files.length} file(s)...`]);
+                        try {
+                          const res = await fetch('/api/ingest/upload', {
+                            method: 'POST',
+                            body: formData
+                          });
+                          const data = await res.json();
+                          if (data.error) throw new Error(data.error);
+                          data.results.forEach((r: any) => setLog(prev => [...prev, `Processed: ${r.title} -> ${r.file}`]));
+                        } catch (err: any) {
+                          setLog(prev => [...prev, `Error: ${err.message}`]);
+                        }
+                        setIsIngesting(false);
+                      }
+                    }}
+                  />
+                </label>
               </div>
             </div>
           )}

@@ -9,6 +9,47 @@ const execAsync = promisify(exec);
 export const WIKI_DIR = path.join(process.cwd(), 'wiki');
 export const RAW_DIR = path.join(process.cwd(), 'raw');
 
+export async function getWikiContext() {
+  const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
+  const titles = Object.keys(index);
+  
+  const allTags = new Set<string>();
+  const domains = new Set<string>();
+  const pageSummaries: Record<string, { tags: string[], snippet: string }> = {};
+  
+  async function scan(dir: string) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        domains.add(path.relative(WIKI_DIR, fullPath));
+        await scan(fullPath);
+      } else if (entry.name.endsWith('.md')) {
+        const content = await fs.readFile(fullPath, 'utf-8');
+        const { data, content: body } = matter(content);
+        const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
+        tags.forEach((t: string) => allTags.add(t));
+        
+        const title = data.title || path.basename(fullPath, '.md');
+        pageSummaries[title] = {
+          tags,
+          snippet: body.slice(0, 200).replace(/\n/g, ' ') + '...'
+        };
+      }
+    }
+  }
+  
+  await scan(WIKI_DIR);
+  
+  return {
+    existingTitles: titles,
+    existingDomains: Array.from(domains),
+    existingTags: Array.from(allTags),
+    pageSummaries
+  };
+}
+
 export interface Frontmatter {
   title?: string;
   category?: string;
