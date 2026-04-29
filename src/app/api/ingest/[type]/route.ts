@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callGemini, callOllama } from '@/lib/ai';
+import { callAI } from '@/lib/ai';
 import fs from 'fs/promises';
 import path from 'path';
 import { WIKI_DIR, getWikiContext, buildPageIndex } from '@/lib/engine';
@@ -52,14 +52,14 @@ TASK:
       "title": "...",
       "action": "create" | "update",
       "targetFile": "path/relative/to/wiki/...",
-      "content": "Markdown with frontmatter (DO NOT wrap in code blocks)",
+      "content": "Full Markdown WITH frontmatter (DO NOT wrap in code blocks). Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0).",
       "conflicts": ["..."]
     }
   ],
   "summary": "Short summary of changes"
 }
 
-CRITICAL: Output raw markdown content for each concept. Do NOT wrap the concept "content" in triple backticks or markdown markers.`;
+CRITICAL: Output raw markdown content for each concept. Do NOT wrap the concept "content" in triple backticks or markdown markers. Ensure frontmatter is at the VERY top.`;
 
     const userPrompt = `Source Type: ${type}
 User Suggested Title: ${userTitle || 'None'}
@@ -67,15 +67,7 @@ Ingest Date: ${ingestDate}
 Source Content:
 ${sourceContent}`;
 
-    const apiKey = process.env.GOOGLE_API_KEY;
-    const modelName = process.env.DEFAULT_MODEL || "gemini-2.0-flash";
-    
-    let resultJsonStr = "";
-    if (apiKey) {
-      resultJsonStr = await callGemini(systemPrompt, userPrompt, apiKey, modelName);
-    } else {
-      resultJsonStr = await callOllama(systemPrompt, userPrompt);
-    }
+    const resultJsonStr = await callAI(systemPrompt, userPrompt);
 
     const jsonMatch = resultJsonStr.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("AI failed to return structured synthesis plan.");
@@ -92,21 +84,36 @@ ${sourceContent}`;
         cleanContent = cleanContent.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '');
       }
       
-      let finalContent = cleanContent;
+      // Post-process to ensure valid frontmatter
+      let { data: conceptData, content: conceptBody } = matter(cleanContent);
+      
+      // Guarantee metadata
+      if (!conceptData.title) conceptData.title = concept.title;
+      if (!conceptData.last_updated) conceptData.last_updated = ingestDate;
+      if (!conceptData.confidence) conceptData.confidence = 0.85;
+      if (!conceptData.tags || (Array.isArray(conceptData.tags) && conceptData.tags.length === 0)) {
+        conceptData.tags = [concept.title.toLowerCase().replace(/\s+/g, '-')];
+      }
+      if (!conceptData.category) {
+        const parts = concept.targetFile.split('/');
+        conceptData.category = parts.length > 1 ? parts[0] : 'General';
+      }
+      
+      let finalContent = matter.stringify(conceptBody, conceptData);
       const stats = await fs.stat(fullPath).catch(() => null);
+      
       if (concept.action === 'update' && stats) {
         const existing = await fs.readFile(fullPath, 'utf-8');
         const { data: existingData, content: existingBody } = matter(existing);
-        const { content: newBody } = matter(cleanContent);
         
         finalContent = matter.stringify(
-          `${existingBody}\n\n## Update (${ingestDate})\n${newBody}`, 
-          { ...existingData, last_updated: ingestDate }
+          `${existingBody}\n\n## Update (${ingestDate})\n${conceptBody}`, 
+          { ...existingData, ...conceptData, last_updated: ingestDate }
         );
       }
 
       await fs.writeFile(fullPath, finalContent, 'utf-8');
-      results.push({ title: concept.title, file: concept.targetFile, action: concept.action, conflicts: concept.conflicts });
+      results.push({ title: conceptData.title, file: concept.targetFile, action: concept.action, conflicts: concept.conflicts });
     }
 
     return NextResponse.json({ 

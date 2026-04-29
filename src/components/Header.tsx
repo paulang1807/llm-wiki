@@ -1,4 +1,4 @@
-import { ViewType } from "@/app/page";
+import { ViewType } from "@/lib/types";
 
 interface HeaderProps {
   view: ViewType;
@@ -16,7 +16,7 @@ export default function Header({ view, setView, onToggleChat, isChatOpen, onTogg
           <i className="fa-solid fa-bars"></i>
         </button>
         <div className="logo" onClick={() => setView('welcome')}>
-          <i className="fa-solid fa-brain logo-icon"></i> LLM Wiki
+          <i className="fa-solid fa-brain logo-icon"></i> <span>LLM Wiki</span>
         </div>
       </div>
       <div className="header-right">
@@ -34,7 +34,7 @@ export default function Header({ view, setView, onToggleChat, isChatOpen, onTogg
           <i className="fa-solid fa-cloud-arrow-up"></i>
         </button>
         <button className={`ai-btn ${isChatOpen ? 'active' : ''}`} onClick={onToggleChat}>
-          <i className="fa-solid fa-robot"></i> Assistant
+          <i className="fa-solid fa-robot"></i> <span>Assistant</span>
         </button>
       </div>
     </header>

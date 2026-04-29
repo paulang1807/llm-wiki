@@ -12,6 +12,8 @@ export default function IngestView() {
   const handleIngest = async (type: string, payload: any) => {
     setIsIngesting(true);
     setLog(prev => [...prev, `Starting ${type} ingestion...`]);
+    setLog(prev => [...prev, `Synthesizing with AI knowledge engine...`]);
+    
     try {
       const res = await fetch(`/api/ingest/${type}`, {
         method: 'POST',
@@ -20,7 +22,22 @@ export default function IngestView() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setLog(prev => [...prev, `Success! Created ${data.path}`]);
+      
+      if (data.results && Array.isArray(data.results)) {
+        data.results.forEach((r: any) => {
+          const icon = r.action === 'create' ? '✨' : '📝';
+          setLog(prev => [...prev, `${icon} ${r.action === 'create' ? 'Created' : 'Updated'}: ${r.title} -> ${r.file}`]);
+          if (r.conflicts && r.conflicts.length > 0) {
+            r.conflicts.forEach((c: string) => setLog(prev => [...prev, `⚠️ Warning: ${c}`]));
+          }
+        });
+      }
+
+      if (data.summary) {
+        setLog(prev => [...prev, `Summary: ${data.summary}`]);
+      }
+      
+      setLog(prev => [...prev, `Knowledge ingestion complete.`]);
     } catch (err: any) {
       setLog(prev => [...prev, `Error: ${err.message}`]);
     }
@@ -122,7 +139,7 @@ export default function IngestView() {
                 <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Quick Note</h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>Perfect for meetings, thoughts, or quick snippets of information.</p>
               </div>
-              <div className="metadata-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '8px' }}>
+              <div className="metadata-grid">
                 <div className="input-group">
                   <label htmlFor="paste-title" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>TITLE (OPTIONAL)</label>
                   <input 
@@ -157,7 +174,6 @@ export default function IngestView() {
                 className="action-btn btn-primary" 
                 onClick={() => handleIngest('paste', { text, title, date })}
                 disabled={!text || isIngesting}
-                style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
                 {isIngesting ? <><i className="fa-solid fa-spinner fa-spin"></i> Ingesting...</> : <><i className="fa-solid fa-bolt"></i> Ingest Note</>}
               </button>
@@ -170,7 +186,7 @@ export default function IngestView() {
                 <h2 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>Add Link</h2>
                 <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem' }}>The assistant will scrape the content and index it for your wiki.</p>
               </div>
-              <div className="metadata-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '8px' }}>
+              <div className="metadata-grid">
                 <div className="input-group">
                   <label htmlFor="link-title" style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-dim)', marginBottom: '8px', display: 'block' }}>TITLE (OPTIONAL)</label>
                   <input 
@@ -210,7 +226,6 @@ export default function IngestView() {
                 className="action-btn btn-primary" 
                 onClick={() => handleIngest('link', { url, title, date })}
                 disabled={!url || isIngesting}
-                style={{ width: 'auto', padding: '12px 32px', alignSelf: 'flex-start' }}
               >
                 {isIngesting ? <><i className="fa-solid fa-spinner fa-spin"></i> Ingesting...</> : <><i className="fa-solid fa-link"></i> Ingest Link</>}
               </button>

@@ -63,8 +63,11 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
 
   const uniqueTags = new Set<string>();
   graphData.nodes.forEach(n => {
-    if (n.tags && n.tags.length) n.tags.forEach((t: string) => uniqueTags.add(t));
-    else if (n.category) uniqueTags.add(n.category);
+    if (n.tags && n.tags.length) {
+      n.tags.forEach((t: string) => uniqueTags.add(t));
+    } else {
+      uniqueTags.add(n.category);
+    }
   });
 
   const handleNodeHover = useCallback((node: any) => {
@@ -102,7 +105,7 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
           const label = node.title;
           const fontSize = 12 / globalScale;
           const radius = (node.connectionsCount ? 5 + Math.sqrt(node.connectionsCount) * 2 : 5) / (globalScale < 1 ? 1 : Math.sqrt(globalScale));
-          const color = getCategoryColor(node.category || (node.tags && node.tags[0]));
+          const color = getCategoryColor(node.category);
 
           // Glow effect
           if (isHovered) {
@@ -166,9 +169,13 @@ export default function GraphView({ onSelectNode }: GraphViewProps) {
         }}>
           <div className="graph-tooltip-title">{hoverNode.title}</div>
           <div className="graph-tooltip-tags">
-            {(hoverNode.tags?.length ? hoverNode.tags : (hoverNode.category ? [hoverNode.category] : [])).map((t: string) => (
-              <span key={t} className="graph-tooltip-tag" style={{ background: getCategoryColor(t) + '22', color: getCategoryColor(t) }}>{t}</span>
-            ))}
+            {hoverNode.tags && hoverNode.tags.length > 0 ? (
+              hoverNode.tags.map((t: string) => (
+                <span key={t} className="graph-tooltip-tag" style={{ background: getCategoryColor(t) + '22', color: getCategoryColor(t) }}>{t}</span>
+              ))
+            ) : (
+              <span className="graph-tooltip-tag" style={{ background: getCategoryColor(hoverNode.category) + '22', color: getCategoryColor(hoverNode.category) }}>{hoverNode.category}</span>
+            )}
           </div>
           <div className="graph-tooltip-meta">
             <i className="fa-solid fa-link"></i> {hoverNode.connectionsCount} connection{hoverNode.connectionsCount !== 1 ? 's' : ''}

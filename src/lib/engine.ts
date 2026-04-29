@@ -177,11 +177,17 @@ export async function buildGraph(): Promise<{ nodes: PageNode[], edges: Edge[] }
           if (Array.isArray(data.tags)) tags = data.tags;
           else if (typeof data.tags === 'string') tags = [data.tags];
 
+          let category = data.category;
+          if (!category || category === 'meta') {
+            const pathParts = nodeId.split('/');
+            category = pathParts.length > 1 ? pathParts[0] : 'General';
+          }
+
           nodes.push({
             id: nodeId,
             title: data.title || entry.name.replace('.md', ''),
-            category: data.category || 'meta',
-            confidence: data.confidence ?? 0.8,
+            category,
+            confidence: data.confidence ?? 0.85,
             stale: data.stale ?? false,
             tags,
             snippet

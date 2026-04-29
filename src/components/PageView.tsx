@@ -135,7 +135,7 @@ export default function PageView({ filePath, onRefresh, onClose }: PageViewProps
           </div>
           <div className="info-item">
             <i className="fa-solid fa-folder" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>
-            <span>{frontmatter.category || 'Uncategorized'}</span>
+            <span>{frontmatter.category || filePath.split('/')[0] || 'Uncategorized'}</span>
           </div>
           <div className="info-item">
             <i className="fa-solid fa-calendar-day" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>

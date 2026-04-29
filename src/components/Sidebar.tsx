@@ -64,7 +64,7 @@ export default function Sidebar({ isOpen, onToggle, onSelectFile, currentFile, t
   };
 
   return (
-    <aside className="sidebar" style={{ display: isOpen ? 'block' : 'none' }}>
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-section">
         <div className="sidebar-label">Tools</div>
         <div className={`nav-item ${currentFile === '__health__' ? 'active' : ''}`} onClick={() => onSelectFile('__health__')}>

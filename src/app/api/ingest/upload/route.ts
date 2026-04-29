@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { callGemini } from '@/lib/ai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { callAI } from '@/lib/ai';
 import fs from 'fs/promises';
 import path from 'path';
 import { WIKI_DIR, getWikiContext } from '@/lib/engine';
@@ -51,22 +52,12 @@ TASK:
   "summary": "..."
 }`;
 
-      // Call Gemini with multimodal data if it's an image or PDF
-      // For now, we'll assume text-based or use multimodal part
-      const genAI = new (require('@google/generative-ai')).GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: modelName });
-
-      const result = await model.generateContent([
-        systemPrompt,
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: mimeType
-          }
+      const resultJsonStr = await callAI(systemPrompt, `File: ${file.name}`, {
+        inlineData: {
+          data: base64Data,
+          mimeType: mimeType
         }
-      ]);
-
-      const resultJsonStr = result.response.text();
+      });
       const jsonMatch = resultJsonStr.match(/\{[\s\S]*\}/);
       if (!jsonMatch) continue;
       

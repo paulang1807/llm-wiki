@@ -12,32 +12,40 @@ import dynamic from 'next/dynamic';
 
 const GraphView = dynamic(() => import('@/components/GraphView'), { ssr: false });
 
-export type ViewType = 'welcome' | 'read' | 'graph' | 'ingest' | 'health';
+import { ViewType } from "@/lib/types";
+export type { ViewType };
 
 export default function App() {
   const [view, setView] = useState<ViewType>('welcome');
   const [currentFile, setCurrentFile] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [treeVersion, setTreeVersion] = useState(0);
+
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      setIsSidebarOpen(false);
+    }
+  }, []);
 
   const loadPage = (path: string) => {
     if (path === '__health__') {
       setView('health');
       setCurrentFile('__health__');
-      return;
+    } else {
+      setCurrentFile(path);
+      setView('read');
     }
-    setCurrentFile(path);
-    setView('read');
+    
+    // Auto-close sidebar on mobile after selection
+    if (window.innerWidth <= 768) {
+      setIsSidebarOpen(false);
+    }
   };
 
   const refreshTree = () => {
-    // This will trigger a re-fetch in the Sidebar component if we pass a version/key
-    // or we can just let Sidebar handle its own state if we provide a trigger.
-    // For now, let's just use a simple counter to force re-render/re-fetch.
     setTreeVersion(v => v + 1);
   };
-
-  const [treeVersion, setTreeVersion] = useState(0);
 
   return (
     <>
@@ -48,6 +56,7 @@ export default function App() {
         isChatOpen={isChatOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
+      
       <div className="layout">
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -74,6 +83,13 @@ export default function App() {
           {view === 'health' && <HealthView />}
         </main>
       </div>
+
+      {/* Sidebar Backdrop for Mobile - Moved to end */}
+      <div 
+        className={`sidebar-backdrop ${isSidebarOpen ? 'visible' : ''}`} 
+        onClick={() => setIsSidebarOpen(false)}
+        style={{ cursor: 'pointer' }}
+      />
 
       {isChatOpen && (
         <ChatDrawer onClose={() => setIsChatOpen(false)} />
