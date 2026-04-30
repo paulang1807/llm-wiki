@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import { WIKI_DIR, countFiles } from '@/lib/engine';
+import { WIKI_DIR, countMdFiles, getFirstMdPage } from '@/lib/engine';
 
 export async function GET() {
   try {
@@ -12,19 +12,19 @@ export async function GET() {
     }
 
     const ICONS: Record<string, string> = {
-      "Engineering": "🛠️",
-      "Software Engineering": "💻",
-      "Data Science": "📊",
-      "AI": "🧠",
-      "Machine Learning": "🤖",
-      "DevOps": "♾️",
-      "OS": "🖥️",
-      "Concepts": "💡",
-      "Personal": "👤",
-      "Meta": "🏷️",
-      "General": "📦",
-      "Data Engineering": "💾",
-      "Product Management": "🚀"
+      "engineering": "🛠️",
+      "software-engineering": "💻",
+      "data-science": "📊",
+      "ai": "🧠",
+      "machine-learning": "🤖",
+      "devops": "♾️",
+      "os": "🖥️",
+      "concepts": "💡",
+      "personal": "👤",
+      "meta": "🏷️",
+      "general": "📦",
+      "data-engineering": "💾",
+      "product-management": "🚀"
     };
 
     const entries = await fs.readdir(WIKI_DIR, { withFileTypes: true });
@@ -32,47 +32,47 @@ export async function GET() {
     for (const entry of entries) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         const domainDir = path.join(WIKI_DIR, entry.name);
-        const subdirs = await fs.readdir(domainDir, { withFileTypes: true });
         
-        let pageCount = 0;
-        const subdomains = [];
-        let firstPage = null;
+        // Count total md pages in the entire domain tree
+        const totalPages = await countMdFiles(domainDir);
+        if (totalPages === 0) continue;
 
+        // Count subdomains: immediate subdirectories that contain at least one .md file anywhere
+        const subdirs = await fs.readdir(domainDir, { withFileTypes: true });
+        let subdomainsCount = 0;
         for (const sub of subdirs) {
-          const subPath = path.join(domainDir, sub.name);
           if (sub.isDirectory() && !sub.name.startsWith('.')) {
-            const files = await fs.readdir(subPath);
-            const mdFiles = files.filter(f => f.endsWith('.md'));
-            if (mdFiles.length > 0) {
-              subdomains.push(sub.name);
-              pageCount += mdFiles.length;
-              if (!firstPage) {
-                firstPage = `${entry.name}/${sub.name}/${mdFiles[0]}`;
-              }
-            }
-          } else if (sub.isFile() && sub.name.endsWith('.md')) {
-            pageCount += 1;
-            if (!firstPage) {
-              firstPage = `${entry.name}/${sub.name}`;
-            }
+            const hasMd = (await countMdFiles(path.join(domainDir, sub.name))) > 0;
+            if (hasMd) subdomainsCount++;
           }
         }
 
-        if (pageCount > 0) {
-          domains.push({
-            name: entry.name,
-            icon: ICONS[entry.name] || "📄",
-            subdomainsCount: subdomains.length,
-            pagesCount: pageCount,
-            desc: `Explore ${subdomains.length} subdomains and ${pageCount} pages.`,
-            path: firstPage
-          });
-        }
+        // Find the first actual page path deep in the tree for the "read more" link
+        const firstPage = await getFirstMdPage(domainDir, WIKI_DIR);
+
+        // Normalize name for icon lookup and display
+        const normalizedKey = entry.name.toLowerCase().replace(/\s+/g, '-');
+        const displayName = entry.name
+          .replace(/-/g, ' ')
+          .replace(/_/g, ' ')
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+
+        domains.push({
+          name: displayName,
+          icon: ICONS[normalizedKey] || "📄",
+          subdomainsCount,
+          pagesCount: totalPages,
+          desc: `Explore ${subdomainsCount} subdomains and ${totalPages} pages.`,
+          path: firstPage
+        });
       }
     }
 
     return NextResponse.json(domains.sort((a, b) => a.name.localeCompare(b.name)));
   } catch (err: any) {
+    console.error("Domains Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

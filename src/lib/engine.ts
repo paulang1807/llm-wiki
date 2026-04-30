@@ -93,6 +93,44 @@ export async function countFiles(dir: string): Promise<number> {
   }
 }
 
+export async function countMdFiles(dir: string): Promise<number> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    let count = 0;
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue;
+      if (entry.isDirectory()) {
+        count += await countMdFiles(path.join(dir, entry.name));
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        count++;
+      }
+    }
+    return count;
+  } catch (err) {
+    return 0;
+  }
+}
+
+export async function getFirstMdPage(dir: string, baseDir: string): Promise<string | null> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    // Prefer files in the current dir first
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md') && !entry.name.startsWith('.')) {
+        return path.relative(baseDir, path.join(dir, entry.name)).replace(/\\/g, '/');
+      }
+    }
+    // Then recurse into subdirs
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const found = await getFirstMdPage(path.join(dir, entry.name), baseDir);
+        if (found) return found;
+      }
+    }
+  } catch (err) {}
+  return null;
+}
+
 export async function walkDir(dir: string, baseDir: string): Promise<any[]> {
   const result = [];
   try {
