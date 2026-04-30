@@ -178,4 +178,40 @@ describe('Knowledge Synthesis Ingestion', () => {
       'utf-8'
     );
   });
+
+  it('includes the original source URL in frontmatter for link ingestion', async () => {
+    const mockPlan = {
+      concepts: [
+        { 
+          title: 'Link Concept', 
+          action: 'create', 
+          targetFile: 'Links/Concept.md', 
+          content: '---\ntitle: Link Concept\n---\nBody', 
+          conflicts: [] 
+        }
+      ],
+      summary: 'Link ingestion'
+    };
+
+    vi.mocked(callAI).mockResolvedValue(JSON.stringify(mockPlan));
+
+    const request = new Request('http://localhost/api/ingest/link', {
+      method: 'POST',
+      body: JSON.stringify({ url: 'https://example.com/article', title: 'Article' })
+    });
+
+    // Mock fetch for the route
+    global.fetch = vi.fn().mockResolvedValue({
+      text: () => Promise.resolve('Article content')
+    });
+
+    await POST(request, { params: Promise.resolve({ type: 'link' }) });
+
+    // Verify writeFile was called with the source URL in frontmatter
+    expect(fs.writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('Links/Concept.md'),
+      expect.stringContaining("source: 'https://example.com/article'"),
+      'utf-8'
+    );
+  });
 });

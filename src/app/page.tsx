@@ -72,6 +72,7 @@ export default function App() {
             <PageView 
               filePath={currentFile} 
               onRefresh={refreshTree}
+              onSelectFile={loadPage}
               onClose={() => {
                 setCurrentFile(null);
                 setView('welcome');

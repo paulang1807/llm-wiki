@@ -52,7 +52,7 @@ TASK:
       "title": "...",
       "action": "create" | "update",
       "targetFile": "path/relative/to/wiki/...",
-      "content": "Full Markdown content INCLUDING YAML frontmatter. You MUST properly escape all double quotes, backslashes, and newlines for valid JSON storage. Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0).",
+      "content": "Full Markdown content INCLUDING YAML frontmatter. You MUST properly escape all double quotes, backslashes, and newlines for valid JSON storage. Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0), and source (URL if available).",
       "conflicts": ["..."]
     }
   ],
@@ -62,6 +62,7 @@ TASK:
 CRITICAL: Your entire response MUST be a single, valid JSON object. Ensure all string values (especially the 'content' field) are correctly escaped according to JSON standards. Do not include any preamble or postamble text.`;
 
     const userPrompt = `Source Type: ${type}
+${type === 'link' ? `Source URL: ${data.url}` : ''}
 User Suggested Title: ${userTitle || 'None'}
 Ingest Date: ${ingestDate}
 Source Content:
@@ -96,6 +97,9 @@ ${sourceContent}`;
       if (!conceptData.category) {
         const parts = concept.targetFile.split('/');
         conceptData.category = parts.length > 1 ? parts[0] : 'General';
+      }
+      if (type === 'link' && !conceptData.source) {
+        conceptData.source = data.url;
       }
       
       let finalContent = matter.stringify(conceptBody, conceptData);

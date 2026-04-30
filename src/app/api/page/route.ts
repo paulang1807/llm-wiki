@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { WIKI_DIR } from '@/lib/engine';
+import { WIKI_DIR, buildPageIndex } from '@/lib/engine';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,10 +22,12 @@ export async function GET(request: Request) {
 
     const content = await fs.readFile(fullPath, 'utf-8');
     const { data, content: body } = matter(content);
+    const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
 
     return NextResponse.json({
       frontmatter: data,
-      content: body
+      content: body,
+      index
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 404 });

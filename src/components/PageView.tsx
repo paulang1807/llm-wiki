@@ -6,11 +6,13 @@ interface PageViewProps {
   filePath: string;
   onRefresh: () => void;
   onClose: () => void;
+  onSelectFile: (path: string) => void;
 }
 
-export default function PageView({ filePath, onRefresh, onClose }: PageViewProps) {
+export default function PageView({ filePath, onRefresh, onClose, onSelectFile }: PageViewProps) {
   const [content, setContent] = useState<string>('');
   const [frontmatter, setFrontmatter] = useState<any>({});
+  const [index, setIndex] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -24,6 +26,7 @@ export default function PageView({ filePath, onRefresh, onClose }: PageViewProps
       .then(data => {
         setContent(data.content || '');
         setFrontmatter(data.frontmatter || {});
+        setIndex(data.index || {});
         setEditContent(data.content || '');
         setEditTitle(data.frontmatter?.title || '');
         setEditDate(data.frontmatter?.last_updated || new Date().toISOString());
@@ -120,8 +123,35 @@ export default function PageView({ filePath, onRefresh, onClose }: PageViewProps
             </div>
           </div>
         ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={{
+              a: ({ node, ...props }) => {
+                const href = props.href || '';
+                const isInternal = !href.startsWith('http');
+                return (
+                  <a 
+                    {...props} 
+                    onClick={(e) => {
+                      if (isInternal) {
+                        e.preventDefault();
+                        onSelectFile(href);
+                      }
+                    }}
+                    style={{ color: 'var(--accent)', textDecoration: 'none', borderBottom: '1px solid transparent' }}
+                    onMouseEnter={e => e.currentTarget.style.borderBottom = '1px solid var(--accent)'}
+                    onMouseLeave={e => e.currentTarget.style.borderBottom = '1px solid transparent'}
+                  />
+                );
+              }
+            }}
+          >
+            {content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, title, alias) => {
+              const cleanTitle = title.trim();
+              const display = (alias || title).trim();
+              const path = index[cleanTitle] || index[cleanTitle.toLowerCase()];
+              return path ? `[${display}](${path})` : `<u>${display}</u>`;
+            })}
           </ReactMarkdown>
         )}
       </div>
@@ -148,6 +178,14 @@ export default function PageView({ filePath, onRefresh, onClose }: PageViewProps
                   #{tag}
                 </span>
               ))}
+            </div>
+          )}
+          {frontmatter.source && (
+            <div className="info-item" style={{ marginTop: '16px', wordBreak: 'break-all' }}>
+              <i className="fa-solid fa-link" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>
+              <a href={frontmatter.source} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', fontSize: '0.8rem', textDecoration: 'underline' }}>
+                Source Link
+              </a>
             </div>
           )}
         </div>
