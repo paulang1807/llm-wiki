@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LLM Wiki: Self-Curating Knowledge Base
 
-## Getting Started
+LLM Wiki is a premium, AI-driven knowledge management system designed to turn raw information into a structured, semantic knowledge graph. Powered by Google's Gemini Pro, it automatically synthesizes notes, URLs, and files into a cohesive wiki with intelligent linking and automated categorization.
 
-First, run the development server:
+![LLM Wiki Home Page](./media/home.png)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## ✨ Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 🧠 AI-Powered Ingestion Hub
+Streamline your knowledge gathering with multi-method ingestion. Whether it's a quick note, a long article, or a collection of research papers, the AI engine processes and integrates it seamlessly.
+- **Quick Note**: Paste text directly for immediate synthesis.
+- **Link Ingestion**: Provide a URL, and the AI extracts the core knowledge while preserving the source citation.
+- **Batch Upload**: Drag and drop multiple files (Markdown, Text, PDF) for bulk processing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+![Ingestion Hub](./media/ingestion.png)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 📊 Semantic Graph & Hierarchy
+Visualize your knowledge. LLM Wiki builds a dynamic graph of concepts and automatically organizes them into a deep, logical domain hierarchy.
+- **Dynamic Sidebar**: Reflects the real-time structure of your knowledge base.
+- **Knowledge Graph**: Explore relationships between concepts visually.
+- **Home Analytics**: Dashboard tiles showing subdomain and page counts for each primary domain.
 
-## Learn More
+![Knowledge Graph](./media/graph.png)
 
-To learn more about Next.js, take a look at the following resources:
+### 🔗 Intelligent Linking & Meta-data
+Every page is part of a larger conversation. The AI automatically generates:
+- **Wikilinks**: Semantic connections to existing knowledge using `[[Title]]` syntax.
+- **Provenance**: Automatic source tracking for all ingested links.
+- **Rich Frontmatter**: Titles, categories, tags, last-updated dates, and AI confidence scores.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+![Page View](./media/page_view.png)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 💎 Premium Design Language
+Built for productivity and aesthetics:
+- **Glassmorphic UI**: A modern, translucent interface that feels lightweight and responsive.
+- **Micro-animations**: Smooth transitions and hover effects for a premium feel.
+- **Real-time Console**: Watch the AI knowledge engine work in real-time.
 
-## Deploy on Vercel
+## 🚀 Getting Started
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Prerequisites
+- Node.js 18+ 
+- A Google Gemini API Key
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/paulang1807/llm-wiki.git
+   cd llm-wiki
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**:
+   Create a `.env` file in the root directory:
+   ```env
+   GOOGLE_API_KEY=your_gemini_api_key_here
+   WIKI_DIR=./wiki
+   ```
+
+4. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
+
+Open [http://localhost:3000](http://localhost:3000) to start building your self-curating knowledge base.
+
+## 📺 Demonstration
+
+Watch the AI Knowledge Engine synthesize a quick note into a structured wiki page:
+
+![Ingestion Flow Demo](./media/ingestion_demo.webp)
+
+---
+
+Built with ❤️ using Next.js and Gemini Pro.
