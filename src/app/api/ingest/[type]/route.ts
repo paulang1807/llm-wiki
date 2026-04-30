@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { callAI } from '@/lib/ai';
 import fs from 'fs/promises';
 import path from 'path';
-import { WIKI_DIR, getWikiContext, buildPageIndex } from '@/lib/engine';
+import { WIKI_DIR, getWikiContext, buildPageIndex, cleanAIJSON } from '@/lib/engine';
 import matter from 'gray-matter';
 
 export async function POST(request: Request, { params }: { params: Promise<{ type: string }> }) {
@@ -52,14 +52,14 @@ TASK:
       "title": "...",
       "action": "create" | "update",
       "targetFile": "path/relative/to/wiki/...",
-      "content": "Full Markdown WITH frontmatter (DO NOT wrap in code blocks). Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0).",
+      "content": "Full Markdown content INCLUDING YAML frontmatter. You MUST properly escape all double quotes, backslashes, and newlines for valid JSON storage. Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0).",
       "conflicts": ["..."]
     }
   ],
   "summary": "Short summary of changes"
 }
 
-CRITICAL: Output raw markdown content for each concept. Do NOT wrap the concept "content" in triple backticks or markdown markers. Ensure frontmatter is at the VERY top.`;
+CRITICAL: Your entire response MUST be a single, valid JSON object. Ensure all string values (especially the 'content' field) are correctly escaped according to JSON standards. Do not include any preamble or postamble text.`;
 
     const userPrompt = `Source Type: ${type}
 User Suggested Title: ${userTitle || 'None'}
@@ -69,9 +69,8 @@ ${sourceContent}`;
 
     const resultJsonStr = await callAI(systemPrompt, userPrompt);
 
-    const jsonMatch = resultJsonStr.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("AI failed to return structured synthesis plan.");
-    const plan = JSON.parse(jsonMatch[0]);
+    const cleanedJson = cleanAIJSON(resultJsonStr);
+    const plan = JSON.parse(cleanedJson);
 
     const results = [];
     for (const concept of plan.concepts) {

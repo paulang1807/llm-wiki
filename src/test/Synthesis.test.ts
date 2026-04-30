@@ -9,6 +9,7 @@ vi.mock('../lib/engine', () => ({
   WIKI_DIR: '/mock/wiki',
   getWikiContext: vi.fn(),
   buildPageIndex: vi.fn(),
+  cleanAIJSON: (x: string) => x, // Simple pass-through for tests
 }));
 
 vi.mock('../lib/ai', () => ({

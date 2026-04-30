@@ -507,3 +507,78 @@ export async function repairHealthIssue(issue: HealthIssue) {
   await fs.writeFile(fullPath, matter.stringify(body, data), 'utf-8');
   return { success: true };
 }
+
+/**
+ * Robustly cleans AI-generated JSON strings that might contain unescaped 
+ * control characters (like raw newlines) within string literals, and handles
+ * common AI mistakes like trailing commas.
+ */
+export function cleanAIJSON(raw: string): string {
+  // 1. Extract the JSON block
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start === -1 || end === -1) return raw;
+  
+  const jsonBlock = raw.slice(start, end + 1);
+  
+  // 2. Process the block character by character to handle escapes and state
+  let result = '';
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = 0; i < jsonBlock.length; i++) {
+    const char = jsonBlock[i];
+    
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      result += char;
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+    
+    if (inString) {
+      // Inside a string: escape control characters
+      if (char === '\n') {
+        result += '\\n';
+      } else if (char === '\r') {
+        result += '\\r';
+      } else if (char === '\t') {
+        result += '\\t';
+      } else {
+        const code = char.charCodeAt(0);
+        if (code < 32) {
+          result += `\\u${code.toString(16).padStart(4, '0')}`;
+        } else {
+          result += char;
+        }
+      }
+    } else {
+      // Outside a string: handle trailing commas and formatting
+      if (char === ',' && i + 1 < jsonBlock.length) {
+        // Look ahead to see if this is a trailing comma
+        let lookAhead = i + 1;
+        while (lookAhead < jsonBlock.length && /\s/.test(jsonBlock[lookAhead])) {
+          lookAhead++;
+        }
+        if (lookAhead < jsonBlock.length && (jsonBlock[lookAhead] === '}' || jsonBlock[lookAhead] === ']')) {
+          // Skip this comma
+          continue;
+        }
+      }
+      result += char;
+    }
+  }
+  
+  return result;
+}
