@@ -45,7 +45,8 @@ TASK:
    - You MUST prioritize existing hierarchies. If a concept relates to "Git", place it in the same domain as other Git notes (e.g., "Software Engineering/Version Control/").
    - Create deep, logical hierarchies if no existing one fits perfectly.
 4. SEMANTIC LINKING: You MUST find and create [[Wikilinks]] to existing pages if the new content is related. 
-5. JSON SCHEMA:
+5. FORMATTING: Use PURE Markdown ONLY. NEVER use HTML tags like <u>, <b>, <i>, etc. Use markdown equivalents (__, **, [[ ]]).
+6. JSON SCHEMA:
 {
   "concepts": [
     {
@@ -93,6 +94,8 @@ ${sourceContent}`;
       if (!conceptData.confidence) conceptData.confidence = 0.85;
       if (!conceptData.tags || (Array.isArray(conceptData.tags) && conceptData.tags.length === 0)) {
         conceptData.tags = [concept.title.toLowerCase().replace(/\s+/g, '-')];
+      } else if (typeof conceptData.tags === 'string') {
+        conceptData.tags = conceptData.tags.split(',').map((t: string) => t.trim().replace(/^#/, '')).filter(Boolean);
       }
       if (!conceptData.category) {
         const parts = concept.targetFile.split('/');

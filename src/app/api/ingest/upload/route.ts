@@ -38,7 +38,8 @@ TASK:
 1. Extract and synthesize content.
 2. DOMAIN CATEGORIZATION: NEVER use 'Inbox'. Prioritize existing hierarchies.
 3. SEMANTIC LINKING: Find and create [[Wikilinks]] to existing pages.
-4. Output a JSON object following this schema:
+4. FORMATTING: Use PURE Markdown ONLY. NEVER use HTML tags like <u>, <b>, <i>, etc. Use markdown equivalents (__, **, [[ ]]).
+5. Output a JSON object following this schema:
 {
   "concepts": [
     {
@@ -73,16 +74,32 @@ TASK:
           cleanContent = cleanContent.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '');
         }
         
-        let finalContent = cleanContent;
+        let { data: conceptData, content: conceptBody } = matter(cleanContent);
+        
+        // Guarantee metadata
+        if (!conceptData.title) conceptData.title = concept.title;
+        if (!conceptData.last_updated) conceptData.last_updated = new Date().toISOString().split('T')[0];
+        if (!conceptData.confidence) conceptData.confidence = 0.85;
+        if (!conceptData.tags || (Array.isArray(conceptData.tags) && conceptData.tags.length === 0)) {
+          conceptData.tags = [concept.title.toLowerCase().replace(/\s+/g, '-')];
+        } else if (typeof conceptData.tags === 'string') {
+          conceptData.tags = conceptData.tags.split(',').map((t: string) => t.trim().replace(/^#/, '')).filter(Boolean);
+        }
+        if (!conceptData.category) {
+          const parts = concept.targetFile.split('/');
+          conceptData.category = parts.length > 1 ? parts[0] : 'General';
+        }
+
+        let finalContent = matter.stringify(conceptBody, conceptData);
         const stats = await fs.stat(fullPath).catch(() => null);
+        
         if (concept.action === 'update' && stats) {
           const existing = await fs.readFile(fullPath, 'utf-8');
           const { data: existingData, content: existingBody } = matter(existing);
-          const { content: newBody } = matter(cleanContent);
           
           finalContent = matter.stringify(
-            `${existingBody}\n\n## Update (File: ${file.name})\n${newBody}`, 
-            { ...existingData, last_updated: new Date().toISOString().split('T')[0] }
+            `${existingBody}\n\n## Update (File: ${file.name})\n${conceptBody}`, 
+            { ...existingData, ...conceptData, last_updated: new Date().toISOString().split('T')[0] }
           );
         }
 

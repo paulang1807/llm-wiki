@@ -128,7 +128,17 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
             components={{
               a: ({ node, ...props }) => {
                 const href = props.href || '';
-                const isInternal = !href.startsWith('http');
+                const isBroken = href === '#broken-link';
+                const isInternal = !href.startsWith('http') && !isBroken;
+                
+                if (isBroken) {
+                  return (
+                    <span style={{ textDecoration: 'underline', color: 'var(--text-dim)', cursor: 'help' }} title="Linked page not found">
+                      {props.children}
+                    </span>
+                  );
+                }
+
                 return (
                   <a 
                     {...props} 
@@ -150,7 +160,7 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
               const cleanTitle = title.trim();
               const display = (alias || title).trim();
               const path = index[cleanTitle] || index[cleanTitle.toLowerCase()];
-              return path ? `[${display}](${path})` : `<u>${display}</u>`;
+              return path ? `[${display}](${path})` : `[${display}](#broken-link)`;
             })}
           </ReactMarkdown>
         )}
@@ -171,13 +181,17 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
             <i className="fa-solid fa-calendar-day" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>
             <span>{frontmatter.last_updated || 'No date'}</span>
           </div>
-          {frontmatter.tags && frontmatter.tags.length > 0 && (
+          {frontmatter.tags && (Array.isArray(frontmatter.tags) ? frontmatter.tags.length > 0 : typeof frontmatter.tags === 'string') && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
-              {frontmatter.tags.map((tag: string) => (
-                <span key={tag} style={{ fontSize: '0.7rem', padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '100px', color: 'var(--text-dim)' }}>
-                  #{tag}
-                </span>
-              ))}
+              {(Array.isArray(frontmatter.tags) ? frontmatter.tags : frontmatter.tags.split(',')).map((tag: string) => {
+                const cleanTag = tag.trim().replace(/^#/, '');
+                if (!cleanTag) return null;
+                return (
+                  <span key={cleanTag} style={{ fontSize: '0.7rem', padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '100px', color: 'var(--text-dim)' }}>
+                    #{cleanTag}
+                  </span>
+                );
+              })}
             </div>
           )}
           {frontmatter.source && (
