@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { WIKI_DIR, buildPageIndex } from '@/lib/engine';
+import { WIKI_DIR, ARCHIVE_DIR, buildPageIndex } from '@/lib/engine';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -67,7 +67,7 @@ export async function DELETE(request: Request) {
 
   try {
     const fullPath = path.join(WIKI_DIR, pagePath);
-    const archivePath = path.join(process.cwd(), 'archive', pagePath);
+    const archivePath = path.join(ARCHIVE_DIR, pagePath);
     
     if (!fullPath.startsWith(WIKI_DIR)) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 403 });

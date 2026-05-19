@@ -6,8 +6,10 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-export const WIKI_DIR = path.join(process.cwd(), 'wiki');
-export const RAW_DIR = path.join(process.cwd(), 'raw');
+export const DATA_DIR = process.env.DATA_DIR || process.cwd();
+export const WIKI_DIR = process.env.WIKI_DIR || path.join(DATA_DIR, 'wiki');
+export const RAW_DIR = process.env.RAW_DIR || path.join(DATA_DIR, 'raw');
+export const ARCHIVE_DIR = process.env.ARCHIVE_DIR || path.join(DATA_DIR, 'archive');
 
 export async function getWikiContext() {
   const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);

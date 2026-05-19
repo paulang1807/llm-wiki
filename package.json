@@ -1,13 +1,16 @@
 {
-  "name": "test_next",
-  "version": "0.1.0",
+  "name": "llm-wiki",
+  "version": "1.0.0",
   "private": true,
+  "main": "main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package:mac": "npm run build && node scripts/build-mac.js && electron-builder --mac",
+    "electron:dev": "electron ."
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -30,11 +33,33 @@
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "electron": "^42.1.0",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "jsdom": "^29.0.2",
     "typescript": "^5",
     "vitest": "^4.1.5",
-    "vitest-mock-extended": "^4.0.0"
+    "vitest-mock-extended": "^4.0.0",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.paulang.llmwiki",
+    "productName": "LLM Wiki",
+    "asar": false,
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png"
+    },
+    "files": [
+      "main.js",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "public/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    }
   }
 }

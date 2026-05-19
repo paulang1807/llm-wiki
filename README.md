@@ -38,13 +38,11 @@ Built for productivity and aesthetics:
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Node.js 18+ 
-- A Google Gemini API Key
+### 🖥️ Desktop Application (macOS)
 
-### Installation
+LLM Wiki is packaged as a standalone macOS application. There is no need to manually start a Next.js server.
 
-1. **Clone the repository**:
+1. **Clone the repository** (if building from source):
    ```bash
    git clone https://github.com/paulang1807/llm-wiki.git
    cd llm-wiki
@@ -55,25 +53,44 @@ Built for productivity and aesthetics:
    npm install
    ```
 
-3. **Configure environment variables**:
-   Create a `.env` file in the root directory:
-   ```env
-   GOOGLE_API_KEY=your_gemini_api_key_here
-   WIKI_DIR=./wiki
+3. **Build the macOS App**:
+   ```bash
+   npm run package:mac
    ```
+   The packaged `.app` will be available in the `release/mac` folder. You can drag `LLM Wiki.app` to your `/Applications` folder.
 
-4. **Run the development server**:
+### 🗄️ Data Storage & Configuration
+
+Because macOS applications are sandboxed, all of your wiki data and configuration is automatically stored in your user Documents folder:
+- **Wiki Notes:** `~/Documents/LLM-Wiki/`
+- **Environment Variables:** `~/Documents/LLM-Wiki/.env`
+
+If the `.env` file does not exist when the app launches, it will automatically create a template for you. You must add your `GOOGLE_API_KEY` to this file.
+
+### 👨‍💻 Local Development
+
+If you prefer to run the web application directly from your terminal (without packaging it as a macOS application):
+
+1. **Setup Environment**: Copy the provided sample configuration.
+   ```bash
+   cp .env.sample .env
+   ```
+   *Make sure to add your `GOOGLE_API_KEY` to the newly created `.env` file.*
+
+2. **Start the Development Server**:
    ```bash
    npm run dev
    ```
+   Open [http://localhost:3000](http://localhost:3000) to start building.
 
-Open [http://localhost:3000](http://localhost:3000) to start building your self-curating knowledge base.
+**Blank Slate Architecture:** By default, local development uses the `wiki/`, `raw/`, `archive/`, and `notes/` folders inside your repository workspace. These folders are tracked in git using empty `.gitkeep` files. This ensures that any new user who clones the repository will start with a perfectly clean, blank slate knowledge base. 
 
+*Optional:* If you want your local development server to point to your macOS Desktop App's storage folder, you can append `DATA_DIR=~/Documents/LLM-Wiki` to your `.env` file.
 ## 📺 Demonstration
 
 Watch the AI Knowledge Engine synthesize a quick note into a structured wiki page:
 
-![Ingestion Flow Demo](./media/ingestion_demo.webp)
+![Ingestion Flow Demo](./media/ingestion_demo.gif)
 
 ---
 
