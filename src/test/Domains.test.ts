@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { countMdFiles, getFirstMdPage } from '../lib/engine';
 import fs from 'fs/promises';
 
+type ReaddirResult = Awaited<ReturnType<typeof fs.readdir>>;
+
 vi.mock('fs/promises', () => {
   const mockFs = {
     readdir: vi.fn(),
@@ -19,33 +21,26 @@ describe('Domain hierarchy utilities', () => {
 
   describe('countMdFiles', () => {
     it('should count only .md files recursively', async () => {
-      // Mock structure:
-      // /AI (dir)
-      //   /NLP (dir)
-      //     note1.md (file)
-      //     /Sub (dir)
-      //       note2.md (file)
-      //   config.json (file - should be ignored)
-      
-      vi.mocked(fs.readdir).mockImplementation(async (path: any) => {
-        if (path === '/AI') {
+      vi.mocked(fs.readdir).mockImplementation(async (dirPath) => {
+        const p = String(dirPath);
+        if (p === '/AI') {
           return [
             { name: 'NLP', isDirectory: () => true, isFile: () => false },
             { name: 'config.json', isDirectory: () => false, isFile: () => true },
-          ] as any;
+          ] as unknown as ReaddirResult;
         }
-        if (path === '/AI/NLP') {
+        if (p === '/AI/NLP') {
           return [
             { name: 'note1.md', isDirectory: () => false, isFile: () => true },
             { name: 'Sub', isDirectory: () => true, isFile: () => false },
-          ] as any;
+          ] as unknown as ReaddirResult;
         }
-        if (path === '/AI/NLP/Sub') {
+        if (p === '/AI/NLP/Sub') {
           return [
             { name: 'note2.md', isDirectory: () => false, isFile: () => true },
-          ] as any;
+          ] as unknown as ReaddirResult;
         }
-        return [];
+        return [] as unknown as ReaddirResult;
       });
 
       const count = await countMdFiles('/AI');
@@ -55,17 +50,18 @@ describe('Domain hierarchy utilities', () => {
 
   describe('getFirstMdPage', () => {
     it('should find the first .md file deep in the hierarchy', async () => {
-      vi.mocked(fs.readdir).mockImplementation(async (path: any) => {
-        if (path === '/AI') {
-          return [{ name: 'DeepDir', isDirectory: () => true, isFile: () => false }] as any;
+      vi.mocked(fs.readdir).mockImplementation(async (dirPath) => {
+        const p = String(dirPath);
+        if (p === '/AI') {
+          return [{ name: 'DeepDir', isDirectory: () => true, isFile: () => false }] as unknown as ReaddirResult;
         }
-        if (path === '/AI/DeepDir') {
-          return [{ name: 'DeepestDir', isDirectory: () => true, isFile: () => false }] as any;
+        if (p === '/AI/DeepDir') {
+          return [{ name: 'DeepestDir', isDirectory: () => true, isFile: () => false }] as unknown as ReaddirResult;
         }
-        if (path === '/AI/DeepDir/DeepestDir') {
-          return [{ name: 'finally.md', isDirectory: () => false, isFile: () => true }] as any;
+        if (p === '/AI/DeepDir/DeepestDir') {
+          return [{ name: 'finally.md', isDirectory: () => false, isFile: () => true }] as unknown as ReaddirResult;
         }
-        return [];
+        return [] as unknown as ReaddirResult;
       });
 
       const pathResult = await getFirstMdPage('/AI', '/');
@@ -73,17 +69,18 @@ describe('Domain hierarchy utilities', () => {
     });
 
     it('should prefer files in current directory over subdirectories', async () => {
-      vi.mocked(fs.readdir).mockImplementation(async (path: any) => {
-        if (path === '/AI') {
+      vi.mocked(fs.readdir).mockImplementation(async (dirPath) => {
+        const p = String(dirPath);
+        if (p === '/AI') {
           return [
             { name: 'Sub', isDirectory: () => true, isFile: () => false },
             { name: 'top.md', isDirectory: () => false, isFile: () => true },
-          ] as any;
+          ] as unknown as ReaddirResult;
         }
-        if (path === '/AI/Sub') {
-          return [{ name: 'deep.md', isDirectory: () => false, isFile: () => true }] as any;
+        if (p === '/AI/Sub') {
+          return [{ name: 'deep.md', isDirectory: () => false, isFile: () => true }] as unknown as ReaddirResult;
         }
-        return [];
+        return [] as unknown as ReaddirResult;
       });
 
       const pathResult = await getFirstMdPage('/AI', '/');

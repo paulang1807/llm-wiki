@@ -1,15 +1,86 @@
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import {
+  Frontmatter,
+  PageNode,
+  Edge,
+  TreeNode,
+  SearchResult,
+  HealthIssue
+} from './types';
 
-const execAsync = promisify(exec);
+export type { Frontmatter, PageNode, Edge, TreeNode, SearchResult, HealthIssue };
 
 export const DATA_DIR = process.env.DATA_DIR || process.cwd();
 export const WIKI_DIR = process.env.WIKI_DIR || path.join(DATA_DIR, 'wiki');
 export const RAW_DIR = process.env.RAW_DIR || path.join(DATA_DIR, 'raw');
 export const ARCHIVE_DIR = process.env.ARCHIVE_DIR || path.join(DATA_DIR, 'archive');
+
+export function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function isMeaningfulTag(tag: string): boolean {
+  const cleaned = tag.trim().replace(/^#+/, '').trim();
+  if (cleaned.length < 2) return false;
+  const alphaNumMatches = cleaned.match(/[a-z0-9]/gi);
+  return Boolean(alphaNumMatches && alphaNumMatches.length >= 2);
+}
+
+export function normalizeTags(rawTags: unknown, fallbackTitle?: string): string[] {
+  const candidates: string[] = [];
+
+  if (Array.isArray(rawTags)) {
+    for (const item of rawTags) {
+      if (typeof item === 'string') {
+        candidates.push(...item.split(','));
+      }
+    }
+  } else if (typeof rawTags === 'string') {
+    candidates.push(...rawTags.split(','));
+  }
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const raw of candidates) {
+    const cleaned = raw
+      .trim()
+      .replace(/^#+/, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+
+    if (!isMeaningfulTag(cleaned)) continue;
+
+    const lower = cleaned.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      result.push(cleaned);
+    }
+  }
+
+  if (result.length === 0 && fallbackTitle) {
+    const fallback = fallbackTitle
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-_]/g, '')
+      .replace(/^-+|-+$/g, '');
+    if (isMeaningfulTag(fallback)) {
+      result.push(fallback);
+    }
+  }
+
+  return result;
+}
+
+export function isSafeWikiPath(targetPath: string, baseDir: string = WIKI_DIR): boolean {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedTarget = path.resolve(resolvedBase, targetPath);
+  return resolvedTarget.startsWith(resolvedBase + path.sep);
+}
 
 export async function getWikiContext() {
   const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
@@ -20,25 +91,29 @@ export async function getWikiContext() {
   const pageSummaries: Record<string, { tags: string[], snippet: string }> = {};
   
   async function scan(dir: string) {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        domains.add(path.relative(WIKI_DIR, fullPath));
-        await scan(fullPath);
-      } else if (entry.name.endsWith('.md')) {
-        const content = await fs.readFile(fullPath, 'utf-8');
-        const { data, content: body } = matter(content);
-        const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
-        tags.forEach((t: string) => allTags.add(t));
-        
-        const title = data.title || path.basename(fullPath, '.md');
-        pageSummaries[title] = {
-          tags,
-          snippet: body.slice(0, 200).replace(/\n/g, ' ') + '...'
-        };
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.name.startsWith('.')) continue;
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          domains.add(path.relative(WIKI_DIR, fullPath));
+          await scan(fullPath);
+        } else if (entry.name.endsWith('.md')) {
+          const content = await fs.readFile(fullPath, 'utf-8');
+          const { data, content: body } = matter(content);
+          const tags = normalizeTags(data.tags);
+          tags.forEach((t: string) => allTags.add(t));
+          
+          const title = data.title || path.basename(fullPath, '.md');
+          pageSummaries[title] = {
+            tags,
+            snippet: body.slice(0, 200).replace(/\n/g, ' ') + '...'
+          };
+        }
       }
+    } catch {
+      // Ignore missing or unreadable directory
     }
   }
   
@@ -50,31 +125,6 @@ export async function getWikiContext() {
     existingTags: Array.from(allTags),
     pageSummaries
   };
-}
-
-export interface Frontmatter {
-  title?: string;
-  category?: string;
-  tags?: string[];
-  confidence?: number;
-  stale?: boolean;
-  related?: string[];
-  [key: string]: any;
-}
-
-export interface PageNode {
-  id: string;
-  title: string;
-  category: string;
-  confidence: number;
-  stale: boolean;
-  tags: string[];
-  snippet: string;
-}
-
-export interface Edge {
-  source: string;
-  target: string;
 }
 
 export async function countFiles(dir: string): Promise<number> {
@@ -90,7 +140,7 @@ export async function countFiles(dir: string): Promise<number> {
       }
     }
     return count;
-  } catch (err) {
+  } catch {
     return 0;
   }
 }
@@ -108,7 +158,7 @@ export async function countMdFiles(dir: string): Promise<number> {
       }
     }
     return count;
-  } catch (err) {
+  } catch {
     return 0;
   }
 }
@@ -129,12 +179,14 @@ export async function getFirstMdPage(dir: string, baseDir: string): Promise<stri
         if (found) return found;
       }
     }
-  } catch (err) {}
+  } catch {
+    // Ignore
+  }
   return null;
 }
 
-export async function walkDir(dir: string, baseDir: string): Promise<any[]> {
-  const result = [];
+export async function walkDir(dir: string, baseDir: string): Promise<TreeNode[]> {
+  const result: TreeNode[] = [];
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -161,7 +213,7 @@ export async function walkDir(dir: string, baseDir: string): Promise<any[]> {
         });
       }
     }
-  } catch (err) {
+  } catch {
     // Ignore
   }
   return result;
@@ -186,7 +238,7 @@ export async function buildPageIndex(dir: string, index: Record<string, string>,
         index[entry.name.replace('.md', '')] = relPath;
       }
     }
-  } catch (err) {
+  } catch {
     // Ignore
   }
   return index;
@@ -213,9 +265,9 @@ export async function buildGraph(): Promise<{ nodes: PageNode[], edges: Edge[] }
           let snippet = body.slice(0, 120).replace(/\n/g, ' ').trim();
           if (body.length > 120) snippet += '...';
 
-          let tags: string[] = [];
-          if (Array.isArray(data.tags)) tags = data.tags;
-          else if (typeof data.tags === 'string') tags = [data.tags];
+          const tags = normalizeTags(data.tags).filter(
+            t => t.toLowerCase() !== 'needs-linking' && t.toLowerCase() !== 'needs-tagging'
+          );
 
           let category = data.category;
           if (!category || category === 'meta') {
@@ -266,7 +318,7 @@ export async function buildGraph(): Promise<{ nodes: PageNode[], edges: Edge[] }
           }
         }
       }
-    } catch (err) {
+    } catch {
       // Ignore
     }
   }
@@ -275,20 +327,10 @@ export async function buildGraph(): Promise<{ nodes: PageNode[], edges: Edge[] }
   return { nodes, edges };
 }
 
-export async function searchFiles(query: string) {
-  // Use ripgrep via child_process if available, otherwise fallback to simple JS search
-  try {
-    const { stdout } = await execAsync(`rg -i -n -C 2 "${query}" "${WIKI_DIR}"`);
-    // Parse ripgrep output
-    // A full ripgrep parser is complex, so let's fallback to node search for simplicity in this implementation,
-    // or just return raw results formatted.
-    // For now, let's implement a simple node-based search to guarantee it works cross-platform.
-  } catch (err) {
-    // rg might fail if no match is found, or not installed
-  }
-  
-  // Fallback JS search
-  const results: any[] = [];
+export async function searchFiles(query: string): Promise<SearchResult[]> {
+  if (!query || !query.trim()) return [];
+
+  const results: SearchResult[] = [];
   async function searchDir(dir: string) {
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -305,7 +347,7 @@ export async function searchFiles(query: string) {
           const title = data.title || entry.name.replace('.md', '');
           const fullText = (body + ' ' + title).toLowerCase();
           const queryTerms = query.split(/\s+/).filter(t => t.length > 2).map(t => t.toLowerCase());
-          if (queryTerms.length === 0) queryTerms.push(query.toLowerCase());
+          if (queryTerms.length === 0) queryTerms.push(query.trim().toLowerCase());
           
           let matches = 0;
           for (const term of queryTerms) {
@@ -315,8 +357,8 @@ export async function searchFiles(query: string) {
           if (matches > 0) {
             const bodyLower = body.toLowerCase();
             const idx = bodyLower.indexOf(queryTerms[0]);
-            const start = Math.max(0, idx - 80);
-            const end = Math.min(body.length, idx + 120);
+            const start = Math.max(0, (idx === -1 ? 0 : idx) - 80);
+            const end = Math.min(body.length, (idx === -1 ? 0 : idx) + 120);
             const snippet = body.slice(start, end).replace(/\n/g, ' ').trim();
             
             results.push({
@@ -329,7 +371,9 @@ export async function searchFiles(query: string) {
           }
         }
       }
-    } catch (err) {}
+    } catch {
+      // Ignore
+    }
   }
   
   await searchDir(WIKI_DIR);
@@ -343,34 +387,32 @@ export async function getRagContext(query: string) {
     try {
       const fullPath = path.join(WIKI_DIR, r.path);
       const content = await fs.readFile(fullPath, 'utf-8');
-      const { data, content: body } = matter(content);
+      const { content: body } = matter(content);
       context += `[Source: ${r.path}]\n${body.substring(0, 1500)}\n\n`;
-    } catch (err) {}
+    } catch {
+      // Ignore
+    }
   }
   return context;
-}
-
-export interface HealthIssue {
-  id: string;
-  type: 'broken_link' | 'orphan' | 'stale' | 'missing_title' | 'empty_content' | 'untagged' | 'duplicate_title' | 'tag_inconsistency' | 'missing_connection';
-  severity: 'high' | 'medium' | 'low';
-  message: string;
-  file: string;
-  details?: any;
-  fixable: boolean;
 }
 
 export async function performHealthCheck(): Promise<HealthIssue[]> {
   const issues: HealthIssue[] = [];
   const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
-  const titles = Object.keys(index).filter(k => k === index[k as any]); // This is not quite right, index maps title to path
   
   // Correctly get unique titles and paths
   const titleToPaths: Record<string, string[]> = {};
-  for (const [title, path] of Object.entries(index)) {
+  const canonicalTitles: string[] = [];
+  const seenPathsForCanonical = new Set<string>();
+
+  for (const [title, filePath] of Object.entries(index)) {
     if (!titleToPaths[title.toLowerCase()]) titleToPaths[title.toLowerCase()] = [];
-    if (!titleToPaths[title.toLowerCase()].includes(path)) {
-      titleToPaths[title.toLowerCase()].push(path);
+    if (!titleToPaths[title.toLowerCase()].includes(filePath)) {
+      titleToPaths[title.toLowerCase()].push(filePath);
+    }
+    if (!seenPathsForCanonical.has(filePath)) {
+      seenPathsForCanonical.add(filePath);
+      canonicalTitles.push(title);
     }
   }
 
@@ -390,7 +432,7 @@ export async function performHealthCheck(): Promise<HealthIssue[]> {
     const content = await fs.readFile(fullPath, 'utf-8');
     const { data, content: body } = matter(content);
 
-    const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
+    const tags = normalizeTags(data.tags);
     fileTags[relPath] = tags;
 
     // 1. Stale
@@ -425,7 +467,7 @@ export async function performHealthCheck(): Promise<HealthIssue[]> {
     const linkedInFile = new Set<string>();
     while ((match = wikiLinkRegex.exec(content)) !== null) {
       const target = match[1].trim();
-      let targetPath = index[target] || index[target.toLowerCase()];
+      const targetPath = index[target] || index[target.toLowerCase()];
       if (targetPath) {
         incomingLinks[targetPath] = (incomingLinks[targetPath] || 0) + 1;
         linkedInFile.add(target.toLowerCase());
@@ -435,12 +477,14 @@ export async function performHealthCheck(): Promise<HealthIssue[]> {
     }
 
     // 6. Missing Connections (Potential Links)
-    for (const title of Object.keys(index)) {
+    for (const title of canonicalTitles) {
       if (title.length < 4) continue; // Skip very short titles
       if (linkedInFile.has(title.toLowerCase())) continue;
       if (data.title?.toLowerCase() === title.toLowerCase()) continue;
+      if (index[title] === relPath) continue;
 
-      const titleRegex = new RegExp(`\\b${title}\\b`, 'i');
+      const escapedTitle = escapeRegExp(title);
+      const titleRegex = new RegExp(`\\b${escapedTitle}\\b`, 'i');
       if (titleRegex.test(body)) {
         issues.push({
           id: `conn-${relPath}-${title}`,
@@ -509,16 +553,18 @@ export async function repairHealthIssue(issue: HealthIssue) {
     case 'orphan': {
       // Actually try to find links to this file in other files
       const title = data.title || path.basename(issue.file, '.md');
+      const escapedTitle = escapeRegExp(title);
       const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
+      const uniquePaths = Array.from(new Set(Object.values(index)));
       let foundAny = false;
       
-      for (const [otherTitle, otherPath] of Object.entries(index)) {
+      for (const otherPath of uniquePaths) {
         if (otherPath === issue.file) continue;
         const otherFullPath = path.join(WIKI_DIR, otherPath);
         const otherContent = await fs.readFile(otherFullPath, 'utf-8');
         const { data: otherData, content: otherBody } = matter(otherContent);
         
-        const titleRegex = new RegExp(`(?<!\\[\\[)\\b${title}\\b(?!\\]\\])`, 'gi');
+        const titleRegex = new RegExp(`(?<!\\[\\[)\\b${escapedTitle}\\b(?!\\]\\])`, 'gi');
         if (titleRegex.test(otherBody)) {
           const newOtherBody = otherBody.replace(titleRegex, `[[${title}]]`);
           await fs.writeFile(otherFullPath, matter.stringify(newOtherBody, otherData), 'utf-8');
@@ -527,8 +573,9 @@ export async function repairHealthIssue(issue: HealthIssue) {
       }
       
       if (!foundAny) {
-        // Tag it as needs-linking but return a message
-        data.tags = Array.from(new Set([...(data.tags || []), 'needs-linking']));
+        // Normalize existing tags first (so string tags are never spread into single characters)
+        const existingTags = normalizeTags(data.tags);
+        data.tags = Array.from(new Set([...existingTags, 'needs-linking']));
         await fs.writeFile(fullPath, matter.stringify(body, data), 'utf-8');
         return { 
           success: false, 
@@ -537,9 +584,11 @@ export async function repairHealthIssue(issue: HealthIssue) {
       }
       break;
     }
-    case 'untagged': 
-      data.tags = ['needs-tagging']; 
+    case 'untagged': {
+      const cleaned = normalizeTags(data.tags);
+      data.tags = cleaned.length > 0 ? cleaned : ['needs-tagging']; 
       break;
+    }
     default: 
       throw new Error(`Auto-repair not implemented for ${issue.type}`);
   }

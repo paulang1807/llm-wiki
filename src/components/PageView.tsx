@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Frontmatter } from '@/lib/types';
 
 interface PageViewProps {
   filePath: string;
@@ -11,32 +12,46 @@ interface PageViewProps {
 
 export default function PageView({ filePath, onRefresh, onClose, onSelectFile }: PageViewProps) {
   const [content, setContent] = useState<string>('');
-  const [frontmatter, setFrontmatter] = useState<any>({});
+  const [frontmatter, setFrontmatter] = useState<Frontmatter>({});
   const [index, setIndex] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadedPath, setLoadedPath] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
 
+  const isLoading = loadedPath !== filePath;
+
   useEffect(() => {
-    setIsLoading(true);
+    let cancelled = false;
     fetch(`/api/page?path=${encodeURIComponent(filePath)}&t=${Date.now()}`)
-      .then(res => res.json())
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to load page');
+        }
+        return data;
+      })
       .then(data => {
+        if (cancelled) return;
         setContent(data.content || '');
         setFrontmatter(data.frontmatter || {});
         setIndex(data.index || {});
         setEditContent(data.content || '');
         setEditTitle(data.frontmatter?.title || '');
-        setEditDate(data.frontmatter?.last_updated || new Date().toISOString());
-        setIsLoading(false);
+        setEditDate(data.frontmatter?.last_updated || new Date().toISOString().split('T')[0]);
+        setLoadedPath(filePath);
       })
       .catch(err => {
+        if (cancelled) return;
         console.error(err);
         setContent('Error loading page content.');
-        setIsLoading(false);
+        setLoadedPath(filePath);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [filePath]);
 
   const handleSave = async () => {
@@ -56,14 +71,12 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
     if (res.ok) {
       setIsEditing(false);
       onRefresh();
-      // Reload current data
-      const data = await res.json();
-      // Need to re-fetch or use returned data
       fetch(`/api/page?path=${encodeURIComponent(filePath)}&t=${Date.now()}`)
         .then(r => r.json())
         .then(d => {
-          setContent(d.content);
-          setFrontmatter(d.frontmatter);
+          setContent(d.content || '');
+          setFrontmatter(d.frontmatter || {});
+          setIndex(d.index || {});
         });
     }
   };
@@ -126,41 +139,44 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{
-              a: ({ node, ...props }) => {
-                const href = props.href || '';
+              a: (props) => {
+                const { href = '', children, ...rest } = props;
                 const isBroken = href === '#broken-link';
                 const isInternal = !href.startsWith('http') && !isBroken;
                 
                 if (isBroken) {
                   return (
                     <span style={{ textDecoration: 'underline', color: 'var(--text-dim)', cursor: 'help' }} title="Linked page not found">
-                      {props.children}
+                      {children}
                     </span>
                   );
                 }
 
                 return (
                   <a 
-                    {...props} 
+                    {...rest}
+                    href={href}
                     onClick={(e) => {
                       if (isInternal) {
                         e.preventDefault();
-                        onSelectFile(href);
+                        onSelectFile(decodeURIComponent(href));
                       }
                     }}
                     style={{ color: 'var(--accent)', textDecoration: 'none', borderBottom: '1px solid transparent' }}
                     onMouseEnter={e => e.currentTarget.style.borderBottom = '1px solid var(--accent)'}
                     onMouseLeave={e => e.currentTarget.style.borderBottom = '1px solid transparent'}
-                  />
+                  >
+                    {children}
+                  </a>
                 );
               }
             }}
           >
-            {content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, title, alias) => {
+            {content.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, title, alias) => {
               const cleanTitle = title.trim();
               const display = (alias || title).trim();
-              const path = index[cleanTitle] || index[cleanTitle.toLowerCase()];
-              return path ? `[${display}](${path})` : `[${display}](#broken-link)`;
+              const resolvedPath = index[cleanTitle] || index[cleanTitle.toLowerCase()];
+              return resolvedPath ? `[${display}](${encodeURI(resolvedPath)})` : `[${display}](#broken-link)`;
             })}
           </ReactMarkdown>
         )}
@@ -184,8 +200,9 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
           {frontmatter.tags && (Array.isArray(frontmatter.tags) ? frontmatter.tags.length > 0 : typeof frontmatter.tags === 'string') && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
               {(Array.isArray(frontmatter.tags) ? frontmatter.tags : frontmatter.tags.split(',')).map((tag: string) => {
-                const cleanTag = tag.trim().replace(/^#/, '');
-                if (!cleanTag) return null;
+                const cleanTag = tag.trim().replace(/^#+/, '').trim().replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '');
+                const alphaNum = cleanTag.match(/[a-z0-9]/gi);
+                if (cleanTag.length < 2 || !alphaNum || alphaNum.length < 2) return null;
                 return (
                   <span key={cleanTag} style={{ fontSize: '0.7rem', padding: '4px 10px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '100px', color: 'var(--text-dim)' }}>
                     #{cleanTag}
@@ -216,15 +233,24 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
 
         <div className="info-section animate-up" style={{ animationDelay: '0.3s' }}>
           <div className="info-label">Properties</div>
-          <div style={{ padding: '16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
-                <span style={{ color: 'var(--text-dim)' }}>Confidence</span>
-                <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{frontmatter.confidence ? `${frontmatter.confidence * 100}%` : 'N/A'}</span>
-             </div>
-             <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
-                <div style={{ width: `${(frontmatter.confidence || 0) * 100}%`, height: '100%', background: 'var(--accent)' }}></div>
-             </div>
-          </div>
+          {(() => {
+            const rawConf = frontmatter.confidence;
+            const parsedConf = typeof rawConf === 'number' ? rawConf : typeof rawConf === 'string' ? parseFloat(rawConf) : NaN;
+            const normalizedConf = !Number.isNaN(parsedConf) && parsedConf > 0
+              ? (parsedConf > 1 ? Math.min(1, parsedConf / 100) : parsedConf)
+              : 0.85;
+            return (
+              <div style={{ padding: '16px', background: 'var(--bg-card)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
+                  <span style={{ color: 'var(--text-dim)' }}>Confidence</span>
+                  <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{`${Math.round(normalizedConf * 100)}%`}</span>
+                </div>
+                <div style={{ height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: `${normalizedConf * 100}%`, height: '100%', background: 'var(--accent)' }}></div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

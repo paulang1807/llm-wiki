@@ -4,9 +4,9 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/start-server.js dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-server.js start",
     "lint": "eslint",
     "test": "vitest run",
     "package:mac": "npm run build && node scripts/build-mac.js && electron-builder --mac",

@@ -14,9 +14,9 @@ global.fetch = vi.fn();
 describe('Sidebar Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       json: async () => mockTree
-    });
+    } as Response);
   });
 
   it('renders the knowledge base tree', async () => {

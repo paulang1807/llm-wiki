@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatDrawerProps {
   onClose: () => void;
@@ -34,8 +36,9 @@ export default function ChatDrawer({ onClose }: ChatDrawerProps) {
       } else {
         throw new Error(data.error || 'Failed to get response');
       }
-    } catch (err: any) {
-      setMessages([...newMessages, { role: 'assistant', content: `Error: ${err.message}` }]);
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setMessages([...newMessages, { role: 'assistant', content: `Error: ${error.message}` }]);
     } finally {
       setIsLoading(false);
     }
@@ -51,7 +54,7 @@ export default function ChatDrawer({ onClose }: ChatDrawerProps) {
         {messages.map((m, i) => (
           <div key={i} className={`chat-message ${m.role}`}>
             <div className="chat-bubble">
-              <div dangerouslySetInnerHTML={{ __html: m.content.replace(/\n/g, '<br/>') }} />
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
             </div>
           </div>
         ))}

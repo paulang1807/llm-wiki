@@ -3,14 +3,23 @@ import { POST } from '../app/api/ingest/[type]/route';
 import { getWikiContext, buildPageIndex } from '../lib/engine';
 import { callAI } from '../lib/ai';
 import fs from 'fs/promises';
-import { NextResponse } from 'next/server';
+import path from 'path';
 
-vi.mock('../lib/engine', () => ({
-  WIKI_DIR: '/mock/wiki',
-  getWikiContext: vi.fn(),
-  buildPageIndex: vi.fn(),
-  cleanAIJSON: (x: string) => x, // Simple pass-through for tests
-}));
+vi.mock('../lib/engine', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/engine')>();
+  return {
+    ...actual,
+    WIKI_DIR: '/mock/wiki',
+    getWikiContext: vi.fn(),
+    buildPageIndex: vi.fn(),
+    cleanAIJSON: (x: string) => x,
+    isSafeWikiPath: (rel: string, base = '/mock/wiki') => {
+      const resolvedBase = path.resolve(base);
+      const resolvedTarget = path.resolve(resolvedBase, rel);
+      return resolvedTarget.startsWith(resolvedBase + path.sep);
+    },
+  };
+});
 
 vi.mock('../lib/ai', () => ({
   callAI: vi.fn(),

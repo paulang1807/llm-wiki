@@ -52,6 +52,7 @@ next-env.d.ts
 /notes/*
 !/notes/.gitkeep
 /tmp/
+/scratch/
 
 # Electron build outputs
 /release/

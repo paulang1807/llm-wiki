@@ -5,8 +5,9 @@ export async function GET() {
   try {
     const issues = await performHealthCheck();
     return NextResponse.json(issues);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -15,7 +16,8 @@ export async function POST(req: Request) {
     const issue = await req.json();
     const result = await repairHealthIssue(issue);
     return NextResponse.json(result);
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

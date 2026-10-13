@@ -7,10 +7,10 @@ global.fetch = vi.fn();
 describe('IngestView Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, path: 'Inbox/test.md' })
-    });
+    } as Response);
   });
 
   it('renders metadata fields in Quick Note tab', () => {

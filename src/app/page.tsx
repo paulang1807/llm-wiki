@@ -23,9 +23,48 @@ export default function App() {
   const [treeVersion, setTreeVersion] = useState(0);
 
   useEffect(() => {
-    if (window.innerWidth <= 768) {
-      setIsSidebarOpen(false);
+    const mql = window.matchMedia?.('(max-width: 768px)');
+    const handleViewport = (matches: boolean) => {
+      if (matches) {
+        setIsSidebarOpen(false);
+      }
+    };
+    if (mql) {
+      if (mql.matches) {
+        requestAnimationFrame(() => handleViewport(true));
+      }
+      const listener = (e: MediaQueryListEvent) => handleViewport(e.matches);
+      mql.addEventListener?.('change', listener);
+      return () => mql.removeEventListener?.('change', listener);
+    } else if (window.innerWidth <= 768) {
+      requestAnimationFrame(() => setIsSidebarOpen(false));
     }
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+
+      if (isEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === '/') {
+        e.preventDefault();
+        const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+        searchInput?.focus();
+      } else if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        setView('graph');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const loadPage = (path: string) => {
@@ -55,6 +94,7 @@ export default function App() {
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         isChatOpen={isChatOpen}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onSelectFile={loadPage}
       />
       
       <div className="layout">
@@ -67,7 +107,7 @@ export default function App() {
         />
         
         <main className="main">
-          {view === 'welcome' && <WelcomeView onSelectFile={loadPage} />}
+          {view === 'welcome' && <WelcomeView onSelectFile={loadPage} treeVersion={treeVersion} />}
           {view === 'read' && currentFile && (
             <PageView 
               filePath={currentFile} 
@@ -80,8 +120,8 @@ export default function App() {
             />
           )}
           {view === 'graph' && <GraphView onSelectNode={loadPage} />}
-          {view === 'ingest' && <IngestView />}
-          {view === 'health' && <HealthView />}
+          {view === 'ingest' && <IngestView onRefresh={refreshTree} />}
+          {view === 'health' && <HealthView onRefresh={refreshTree} />}
         </main>
       </div>
 

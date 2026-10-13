@@ -1,19 +1,13 @@
 import { useState, useEffect } from 'react';
+import { HealthIssue } from '@/lib/types';
 
-interface HealthIssue {
-  id: string;
-  type: string;
-  severity: 'high' | 'medium' | 'low';
-  message: string;
-  file: string;
-  details?: any;
-  fixable: boolean;
+interface HealthViewProps {
+  onRefresh?: () => void;
 }
 
-export default function HealthView() {
+export default function HealthView({ onRefresh }: HealthViewProps) {
   const [issues, setIssues] = useState<HealthIssue[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isScanning, setIsScanning] = useState(true);
   const [repairingId, setRepairingId] = useState<string | null>(null);
   const [repairMessage, setRepairMessage] = useState<{ id: string, text: string } | null>(null);
 
@@ -22,7 +16,9 @@ export default function HealthView() {
     try {
       const res = await fetch('/api/health');
       const data = await res.json();
-      setIssues(data);
+      if (Array.isArray(data)) {
+        setIssues(data);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -41,6 +37,7 @@ export default function HealthView() {
       if (res.ok && data.success) {
         setIssues(prev => prev.filter(i => i.id !== issue.id));
         setRepairMessage(null);
+        onRefresh?.();
       } else if (data.message) {
         setRepairMessage({ id: issue.id, text: data.message });
       }
@@ -51,7 +48,23 @@ export default function HealthView() {
   };
 
   useEffect(() => {
-    scan();
+    let cancelled = false;
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        if (!cancelled && Array.isArray(data)) {
+          setIssues(data);
+        }
+      })
+      .catch(err => {
+        if (!cancelled) console.error(err);
+      })
+      .finally(() => {
+        if (!cancelled) setIsScanning(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const getSeverityColor = (sev: string) => {

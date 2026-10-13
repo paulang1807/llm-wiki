@@ -3,7 +3,14 @@ import { NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { WIKI_DIR, ARCHIVE_DIR, buildPageIndex } from '@/lib/engine';
+import { WIKI_DIR, ARCHIVE_DIR, buildPageIndex, isSafeWikiPath, normalizeTags } from '@/lib/engine';
+
+function normalizeConfidence(raw: unknown, fallback = 0.85): number {
+  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? parseFloat(raw) : NaN;
+  if (Number.isNaN(num) || num <= 0) return fallback;
+  if (num > 1) return Math.min(1, num / 100);
+  return num;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -16,12 +23,28 @@ export async function GET(request: Request) {
   try {
     const fullPath = path.join(WIKI_DIR, pagePath);
     // Security check
-    if (!fullPath.startsWith(WIKI_DIR)) {
+    if (!isSafeWikiPath(fullPath, WIKI_DIR)) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
     }
 
-    const content = await fs.readFile(fullPath, 'utf-8');
+    const [content, stats] = await Promise.all([
+      fs.readFile(fullPath, 'utf-8'),
+      fs.stat(fullPath).catch(() => null)
+    ]);
     const { data, content: body } = matter(content);
+    if (data.tags !== undefined) {
+      data.tags = normalizeTags(data.tags);
+    }
+    data.confidence = normalizeConfidence(data.confidence);
+    if (!data.last_updated) {
+      if (data.date instanceof Date) {
+        data.last_updated = data.date.toISOString().split('T')[0];
+      } else if (typeof data.date === 'string' && data.date.trim()) {
+        data.last_updated = data.date.split('T')[0];
+      } else if (stats) {
+        data.last_updated = new Date(stats.mtimeMs).toISOString().split('T')[0];
+      }
+    }
     const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
 
     return NextResponse.json({
@@ -29,8 +52,9 @@ export async function GET(request: Request) {
       content: body,
       index
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 404 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 404 });
   }
 }
 
@@ -43,17 +67,24 @@ export async function POST(request: Request) {
 
   try {
     const fullPath = path.join(WIKI_DIR, pagePath);
-    if (!fullPath.startsWith(WIKI_DIR)) {
+    if (!isSafeWikiPath(fullPath, WIKI_DIR)) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
     }
 
-    const newFileContent = matter.stringify(content, frontmatter);
+    const sanitizedFrontmatter = { ...frontmatter };
+    if (sanitizedFrontmatter.tags !== undefined) {
+      sanitizedFrontmatter.tags = normalizeTags(sanitizedFrontmatter.tags, sanitizedFrontmatter.title);
+    }
+    sanitizedFrontmatter.confidence = normalizeConfidence(sanitizedFrontmatter.confidence);
+
+    const newFileContent = matter.stringify(content, sanitizedFrontmatter);
     await fs.mkdir(path.dirname(fullPath), { recursive: true });
     await fs.writeFile(fullPath, newFileContent, 'utf-8');
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
@@ -69,7 +100,7 @@ export async function DELETE(request: Request) {
     const fullPath = path.join(WIKI_DIR, pagePath);
     const archivePath = path.join(ARCHIVE_DIR, pagePath);
     
-    if (!fullPath.startsWith(WIKI_DIR)) {
+    if (!isSafeWikiPath(fullPath, WIKI_DIR) || !isSafeWikiPath(archivePath, ARCHIVE_DIR)) {
       return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
     }
 
@@ -80,7 +111,8 @@ export async function DELETE(request: Request) {
     await fs.rename(fullPath, archivePath);
 
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

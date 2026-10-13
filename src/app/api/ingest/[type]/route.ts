@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { callAI } from '@/lib/ai';
 import fs from 'fs/promises';
 import path from 'path';
-import { WIKI_DIR, getWikiContext, buildPageIndex, cleanAIJSON } from '@/lib/engine';
+import { WIKI_DIR, getWikiContext, cleanAIJSON, normalizeTags } from '@/lib/engine';
 import matter from 'gray-matter';
 
 export async function POST(request: Request, { params }: { params: Promise<{ type: string }> }) {
@@ -20,13 +20,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ typ
       try {
         const res = await fetch(data.url);
         sourceContent = await res.text();
-      } catch (e) {
+      } catch {
         sourceContent = `URL: ${data.url} (Fetch failed, processing URL only)`;
       }
     }
 
     const context = await getWikiContext();
-    const index = await buildPageIndex(WIKI_DIR, {}, WIKI_DIR);
 
     const systemPrompt = `You are a Knowledge Synthesis Engine for a premium wiki. 
 Your goal is to integrate new info into the existing knowledge graph.
@@ -53,7 +52,7 @@ TASK:
       "title": "...",
       "action": "create" | "update",
       "targetFile": "path/relative/to/wiki/...",
-      "content": "Full Markdown content INCLUDING YAML frontmatter. You MUST properly escape all double quotes, backslashes, and newlines for valid JSON storage. Frontmatter MUST include: title, category, tags (array), date, confidence (0.0 to 1.0), and source (URL if available).",
+      "content": "Full Markdown content INCLUDING YAML frontmatter. You MUST properly escape all double quotes, backslashes, and newlines for valid JSON storage. Frontmatter MUST include: title, category, tags (YAML array of 2-5 meaningful lowercase kebab-case topic strings, each at least 2 characters long), date, confidence (0.0 to 1.0), and source (URL if available).",
       "conflicts": ["..."]
     }
   ],
@@ -75,8 +74,12 @@ ${sourceContent}`;
     const plan = JSON.parse(cleanedJson);
 
     const results = [];
+    const resolvedWikiDir = path.resolve(WIKI_DIR);
     for (const concept of plan.concepts) {
       const fullPath = path.join(WIKI_DIR, concept.targetFile);
+      if (!path.resolve(fullPath).startsWith(resolvedWikiDir + path.sep)) {
+        throw new Error(`Invalid targetFile path: ${concept.targetFile}`);
+      }
       await fs.mkdir(path.dirname(fullPath), { recursive: true });
       
       // Clean up content: strip code block wrappers if AI ignored instructions
@@ -86,17 +89,13 @@ ${sourceContent}`;
       }
       
       // Post-process to ensure valid frontmatter
-      let { data: conceptData, content: conceptBody } = matter(cleanContent);
+      const { data: conceptData, content: conceptBody } = matter(cleanContent);
       
       // Guarantee metadata
       if (!conceptData.title) conceptData.title = concept.title;
       if (!conceptData.last_updated) conceptData.last_updated = ingestDate;
       if (!conceptData.confidence) conceptData.confidence = 0.85;
-      if (!conceptData.tags || (Array.isArray(conceptData.tags) && conceptData.tags.length === 0)) {
-        conceptData.tags = [concept.title.toLowerCase().replace(/\s+/g, '-')];
-      } else if (typeof conceptData.tags === 'string') {
-        conceptData.tags = conceptData.tags.split(',').map((t: string) => t.trim().replace(/^#/, '')).filter(Boolean);
-      }
+      conceptData.tags = normalizeTags(conceptData.tags, concept.title);
       if (!conceptData.category) {
         const parts = concept.targetFile.split('/');
         conceptData.category = parts.length > 1 ? parts[0] : 'General';
@@ -111,10 +110,14 @@ ${sourceContent}`;
       if (concept.action === 'update' && stats) {
         const existing = await fs.readFile(fullPath, 'utf-8');
         const { data: existingData, content: existingBody } = matter(existing);
+        const mergedTags = normalizeTags(
+          [...normalizeTags(existingData.tags), ...normalizeTags(conceptData.tags)],
+          conceptData.title
+        );
         
         finalContent = matter.stringify(
           `${existingBody}\n\n## Update (${ingestDate})\n${conceptBody}`, 
-          { ...existingData, ...conceptData, last_updated: ingestDate }
+          { ...existingData, ...conceptData, tags: mergedTags, last_updated: ingestDate }
         );
       }
 
@@ -127,8 +130,9 @@ ${sourceContent}`;
       results,
       summary: plan.summary
     });
-  } catch (err: any) {
-    console.error("Synthesis Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("Synthesis Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

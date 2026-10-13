@@ -1,22 +1,32 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, shell } = require('electron');
 const path = require('path');
 const net = require('net');
 const fs = require('fs');
 const child_process = require('child_process');
 
-let mainWindow;
-let nextProcess;
+let mainWindow = null;
+let nextProcess = null;
+let activePort = null;
 
-// Find a free port
-function findFreePort() {
+// Find a free port, starting from preferredPort if available
+function findFreePort(preferredPort = 3000) {
   return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.on('error', reject);
-    server.listen(0, () => {
-      const port = server.address().port;
-      server.close(() => resolve(port));
-    });
+    const tryListen = (portToTry) => {
+      const server = net.createServer();
+      server.unref();
+      server.on('error', (err) => {
+        if (portToTry !== 0) {
+          tryListen(0);
+        } else {
+          reject(err);
+        }
+      });
+      server.listen(portToTry, '127.0.0.1', () => {
+        const port = server.address().port;
+        server.close(() => resolve(port));
+      });
+    };
+    tryListen(preferredPort);
   });
 }
 
@@ -37,7 +47,41 @@ function parseEnvFile(filePath) {
   });
 }
 
+function createWindow(port) {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    title: "LLM Wiki",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  const activeUrl = `http://localhost:${port}`;
+  console.log(`[LLM-Wiki] Opening window at ${activeUrl}`);
+  mainWindow.loadURL(activeUrl);
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  // Open target links in default browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+}
+
 async function startServerAndApp() {
+  if (nextProcess && activePort) {
+    createWindow(activePort);
+    return;
+  }
+
   const docsPath = app.getPath('documents');
   const wikiDir = path.join(docsPath, 'LLM-Wiki');
 
@@ -57,23 +101,24 @@ async function startServerAndApp() {
       message: `A configuration file was created at:\n${envPath}\n\nPlease add your GOOGLE_API_KEY to this file for the LLM features to work.`
     });
   }
-  
+
   parseEnvFile(envPath);
   process.env.DATA_DIR = wikiDir;
-  
-  // Find open port
-  const port = await findFreePort();
+
+  // Find open port dynamically
+  const preferred = parseInt(process.env.PORT || '3000', 10);
+  const port = await findFreePort(preferred);
+  activePort = port;
   process.env.PORT = port.toString();
   process.env.NODE_ENV = 'production';
   process.env.HOSTNAME = '127.0.0.1';
 
-  console.log(`Starting LLM-Wiki on port ${port} with WIKI_DIR=${wikiDir}`);
+  console.log(`[LLM-Wiki] Starting server on http://localhost:${port} (port ${port}) with WIKI_DIR=${wikiDir}`);
 
   // Determine path to Next.js standalone server
-  let serverPath = path.join(__dirname, '.next', 'standalone', 'server.js');
-  
+  const serverPath = path.join(__dirname, '.next', 'standalone', 'server.js');
+
   if (!fs.existsSync(serverPath)) {
-    // If running in dev mode using just 'electron .'
     dialog.showErrorBox('Server Not Found', 'Could not find the packaged server. Ensure the app was built correctly.');
     app.quit();
     return;
@@ -88,22 +133,6 @@ async function startServerAndApp() {
   nextProcess.stdout.on('data', (data) => console.log(`[Next.js]: ${data}`));
   nextProcess.stderr.on('data', (data) => console.error(`[Next.js Error]: ${data}`));
 
-  // Wait for the server to be ready
-  const waitForServer = () => {
-    return new Promise((resolve) => {
-      const interval = setInterval(() => {
-        const req = net.request({ port, host: '127.0.0.1' });
-        req.on('response', (res) => {
-          clearInterval(interval);
-          resolve();
-        });
-        req.on('error', () => {});
-        req.end();
-      }, 500);
-    });
-  };
-  
-  // Actually wait for it... wait, net.request doesn't exist in standard node 'net'. Use 'http' or just attempt connect.
   const waitForPort = () => {
     return new Promise((resolve) => {
       let attempts = 0;
@@ -129,27 +158,8 @@ async function startServerAndApp() {
   };
 
   await waitForPort();
-
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    title: "LLM Wiki",
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true
-    }
-  });
-
-  mainWindow.loadURL(`http://localhost:${port}`);
-  
-  // Open target links in default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http')) {
-      require('electron').shell.openExternal(url);
-      return { action: 'deny' };
-    }
-    return { action: 'allow' };
-  });
+  console.log(`[LLM-Wiki] Server ready at http://localhost:${port}`);
+  createWindow(port);
 }
 
 app.whenReady().then(() => {
@@ -175,5 +185,6 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   if (nextProcess) {
     nextProcess.kill();
+    nextProcess = null;
   }
 });

@@ -71,8 +71,9 @@ export async function GET() {
     }
 
     return NextResponse.json(domains.sort((a, b) => a.name.localeCompare(b.name)));
-  } catch (err: any) {
-    console.error("Domains Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error("Domains Error:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

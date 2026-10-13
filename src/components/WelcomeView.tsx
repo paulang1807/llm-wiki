@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
+import { DomainSummary } from '@/lib/types';
 
 interface WelcomeViewProps {
   onSelectFile: (path: string) => void;
+  treeVersion?: number;
 }
 
-export default function WelcomeView({ onSelectFile }: WelcomeViewProps) {
-  const [domains, setDomains] = useState<any[]>([]);
+export default function WelcomeView({ onSelectFile, treeVersion = 0 }: WelcomeViewProps) {
+  const [domains, setDomains] = useState<DomainSummary[]>([]);
 
   useEffect(() => {
     fetch('/api/domains')
       .then(res => res.json())
-      .then(setDomains);
-  }, []);
+      .then((data: DomainSummary[]) => {
+        if (Array.isArray(data)) setDomains(data);
+      })
+      .catch(err => console.error('Failed to load domains:', err));
+  }, [treeVersion]);
   return (
     <div className="welcome-container animate-fade">
       <div className="welcome-hero animate-up">
@@ -23,7 +28,7 @@ export default function WelcomeView({ onSelectFile }: WelcomeViewProps) {
         
         <div className="welcome-grid">
           {domains.map(d => (
-            <div key={d.name} className="welcome-card" onClick={() => onSelectFile(d.path)}>
+            <div key={d.name} className="welcome-card" onClick={() => d.path && onSelectFile(d.path)}>
               <div className="welcome-card-icon">{d.icon}</div>
               <div className="welcome-card-title">{d.name}</div>
               <div className="welcome-card-desc">{d.desc}</div>

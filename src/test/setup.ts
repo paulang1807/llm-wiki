@@ -14,9 +14,9 @@ vi.mock('next/navigation', () => ({
 
 // Mock next/dynamic
 vi.mock('next/dynamic', () => ({
-  default: (fn: any) => {
-    const Component = (props: any) => {
-      return null; // Or some mock component
+  default: () => {
+    const Component = () => {
+      return null;
     };
     return Component;
   },

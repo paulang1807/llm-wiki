@@ -1,6 +1,22 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, Part } from '@google/generative-ai';
 
-export async function callGemini(systemPrompt: string, userPrompt: string, apiKey: string, modelName: string = "gemini-2.0-flash", multimodalPart?: any, jsonMode: boolean = false) {
+export function isApiKeyConfigured(key?: string): boolean {
+  if (!key) return false;
+  const trimmed = key.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  return !lower.includes('your_') && !lower.includes('api_key_here');
+}
+
+export async function callGemini(
+  systemPrompt: string,
+  userPrompt: string,
+  apiKey: string,
+  modelName: string = "gemini-2.0-flash",
+  multimodalPart?: Part,
+  jsonMode: boolean = false,
+  fallbackToOllama: boolean = true
+) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel(
@@ -8,25 +24,31 @@ export async function callGemini(systemPrompt: string, userPrompt: string, apiKe
       { apiVersion: 'v1beta' }
     );
     
-    const parts = [{ text: systemPrompt + "\n\n" + userPrompt }];
+    const parts: Part[] = [{ text: systemPrompt + "\n\n" + userPrompt }];
     if (multimodalPart) parts.push(multimodalPart);
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts }]
     });
     return result.response.text();
-  } catch (err: any) {
-    if (err.message?.includes('429') || err.message?.includes('Quota exceeded')) {
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (fallbackToOllama && (error.message?.includes('429') || error.message?.includes('Quota exceeded'))) {
       console.warn("Gemini Quota Exceeded. Attempting fallback to Ollama...");
       // For Ollama fallback, we currently only send text as most common models (llama3) are text-only
       // unless we explicitly check for vision models.
-      return callOllama(systemPrompt, userPrompt);
+      return callOllama(systemPrompt, userPrompt, undefined, jsonMode);
     }
-    throw err;
+    throw error;
   }
 }
 
-export async function callOllama(systemPrompt: string, userPrompt: string, modelName: string = process.env.OLLAMA_MODEL || "llama3", jsonMode: boolean = false) {
+export async function callOllama(
+  systemPrompt: string,
+  userPrompt: string,
+  modelName: string = process.env.OLLAMA_MODEL || "llama3",
+  jsonMode: boolean = false
+) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
@@ -52,14 +74,15 @@ export async function callOllama(systemPrompt: string, userPrompt: string, model
     }
     const data = await response.json();
     return data.response;
-  } catch (err: any) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (error.name === 'AbortError') {
       throw new Error(`AI Fallback Failed: Ollama request timed out after 10s.`);
     }
-    const isConnectionError = err.message?.includes('fetch failed') || err.message?.includes('ECONNREFUSED');
+    const isConnectionError = error.message?.includes('fetch failed') || error.message?.includes('ECONNREFUSED');
     const hint = isConnectionError ? " Is Ollama running at http://127.0.0.1:11434?" : "";
-    throw new Error(`AI Fallback Failed: ${err.message}.${hint}`);
+    throw new Error(`AI Fallback Failed: ${error.message}.${hint}`);
   }
 }
 
@@ -67,11 +90,16 @@ export async function callOllama(systemPrompt: string, userPrompt: string, model
  * Unified AI entry point with cascading fallback across Gemini models,
  * then finally falling back to Ollama.
  */
-export async function callAI(systemPrompt: string, userPrompt: string, multimodalPart?: any, jsonMode: boolean = true) {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  const preferredModel = process.env.DEFAULT_MODEL || "gemini-1.5-flash";
+export async function callAI(
+  systemPrompt: string,
+  userPrompt: string,
+  multimodalPart?: Part,
+  jsonMode: boolean = true
+) {
+  const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const preferredModel = process.env.DEFAULT_MODEL || "gemini-2.5-flash";
   
-  if (!apiKey || apiKey.includes("YOUR_API_KEY")) {
+  if (!isApiKeyConfigured(apiKey)) {
     console.warn("GOOGLE_API_KEY is missing or placeholder. Falling back to Ollama.");
     return callOllama(systemPrompt, userPrompt, undefined, jsonMode);
   }
@@ -92,37 +120,46 @@ export async function callAI(systemPrompt: string, userPrompt: string, multimoda
 
   for (const modelName of modelsToTry) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout like Python
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
     try {
       console.log(`[AI CASCADE] Attempting ${modelName} (v1)...`);
-      const responseText = await callGemini(systemPrompt, userPrompt, apiKey, modelName, multimodalPart, jsonMode);
+      const responseText = await callGemini(
+        systemPrompt,
+        userPrompt,
+        apiKey!,
+        modelName,
+        multimodalPart,
+        jsonMode,
+        false
+      );
       
       clearTimeout(timeoutId);
       console.log(`[AI CASCADE] SUCCESS with ${modelName}`);
       return responseText;
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
-      lastError = err;
+      const error = err instanceof Error ? err : new Error(String(err));
+      lastError = error;
       
-      if (err.name === 'AbortError') {
+      if (error.name === 'AbortError') {
         console.warn(`[AI CASCADE] ${modelName} TIMEOUT after 90s.`);
         continue;
       }
-      console.warn(`[AI CASCADE] ${modelName} FAILED: ${err.message}`);
+      console.warn(`[AI CASCADE] ${modelName} FAILED: ${error.message}`);
       
-      const isQuotaError = err.message?.includes('429') || err.message?.includes('Quota exceeded');
+      const isQuotaError = error.message?.includes('429') || error.message?.includes('Quota exceeded');
       if (isQuotaError) {
         console.warn(`${modelName} quota exceeded. Trying next model...`);
         continue;
       }
       
-      const isUnavailable = err.message?.includes('503') || 
-                             err.message?.includes('404') || 
-                             err.message?.toLowerCase().includes('not found') ||
-                             err.message?.includes('unsupported') ||
-                             err.message?.includes('fetch failed') ||
-                             err.message?.includes('ECONN');
+      const isUnavailable = error.message?.includes('503') || 
+                             error.message?.includes('404') || 
+                             error.message?.toLowerCase().includes('not found') ||
+                             error.message?.includes('unsupported') ||
+                             error.message?.includes('fetch failed') ||
+                             error.message?.includes('ECONN');
                              
       if (isUnavailable) {
         console.warn(`${modelName} unavailable, not supported, or network glitch. Trying next model...`);
@@ -130,7 +167,7 @@ export async function callAI(systemPrompt: string, userPrompt: string, multimoda
       }
       
       console.error(`[AI CASCADE] Non-recoverable error with ${modelName}. Stopping cascade.`);
-      throw err; 
+      throw error; 
     }
   }
 
@@ -139,7 +176,9 @@ export async function callAI(systemPrompt: string, userPrompt: string, multimoda
   
   try {
     return await callOllama(systemPrompt, userPrompt, undefined, jsonMode);
-  } catch (ollamaErr: any) {
-    throw new Error(`AI Synthesis Failed: All Gemini models failed (${lastError?.message}), and Ollama fallback also failed (${ollamaErr.message}).`);
+  } catch (ollamaErr: unknown) {
+    const error = ollamaErr instanceof Error ? ollamaErr : new Error(String(ollamaErr));
+    throw new Error(`AI Synthesis Failed: All Gemini models failed (${lastError?.message}), and Ollama fallback also failed (${error.message}).`);
   }
 }
+

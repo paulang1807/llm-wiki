@@ -7,9 +7,9 @@ global.fetch = vi.fn();
 describe('ChatDrawer Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       json: async () => ({ role: 'assistant', content: 'Mock response' })
-    });
+    } as Response);
   });
 
   it('renders initial assistant message', () => {

@@ -1,6 +1,17 @@
 import { useState } from 'react';
 
-export default function IngestView() {
+interface IngestViewProps {
+  onRefresh?: () => void;
+}
+
+interface IngestResultItem {
+  title: string;
+  file: string;
+  action?: 'create' | 'update' | string;
+  conflicts?: string[];
+}
+
+export default function IngestView({ onRefresh }: IngestViewProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'paste' | 'link'>('upload');
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
@@ -9,7 +20,7 @@ export default function IngestView() {
   const [isIngesting, setIsIngesting] = useState(false);
   const [log, setLog] = useState<string[]>([]);
 
-  const handleIngest = async (type: string, payload: any) => {
+  const handleIngest = async (type: string, payload: Record<string, string>) => {
     setIsIngesting(true);
     setLog(prev => [...prev, `Starting ${type} ingestion...`]);
     setLog(prev => [...prev, `Synthesizing with AI knowledge engine...`]);
@@ -24,7 +35,7 @@ export default function IngestView() {
       if (data.error) throw new Error(data.error);
       
       if (data.results && Array.isArray(data.results)) {
-        data.results.forEach((r: any) => {
+        data.results.forEach((r: IngestResultItem) => {
           const icon = r.action === 'create' ? '✨' : '📝';
           setLog(prev => [...prev, `${icon} ${r.action === 'create' ? 'Created' : 'Updated'}: ${r.title} -> ${r.file}`]);
           if (r.conflicts && r.conflicts.length > 0) {
@@ -38,8 +49,36 @@ export default function IngestView() {
       }
       
       setLog(prev => [...prev, `Knowledge ingestion complete.`]);
-    } catch (err: any) {
-      setLog(prev => [...prev, `Error: ${err.message}`]);
+      onRefresh?.();
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setLog(prev => [...prev, `Error: ${error.message}`]);
+    }
+    setIsIngesting(false);
+  };
+
+  const handleFilesUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f));
+
+    setIsIngesting(true);
+    setLog(prev => [...prev, `Uploading ${files.length} file(s)...`]);
+    try {
+      const res = await fetch('/api/ingest/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (Array.isArray(data.results)) {
+        data.results.forEach((r: IngestResultItem) => setLog(prev => [...prev, `Processed: ${r.title} -> ${r.file}`]));
+      }
+      setLog(prev => [...prev, `Knowledge ingestion complete.`]);
+      onRefresh?.();
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      setLog(prev => [...prev, `Error: ${error.message}`]);
     }
     setIsIngesting(false);
   };
@@ -74,26 +113,7 @@ export default function IngestView() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={async (e) => {
                   e.preventDefault();
-                  const files = Array.from(e.dataTransfer.files);
-                  if (files.length > 0) {
-                    const formData = new FormData();
-                    files.forEach(f => formData.append('files', f));
-                    
-                    setIsIngesting(true);
-                    setLog(prev => [...prev, `Uploading ${files.length} file(s)...`]);
-                    try {
-                      const res = await fetch('/api/ingest/upload', {
-                        method: 'POST',
-                        body: formData
-                      });
-                      const data = await res.json();
-                      if (data.error) throw new Error(data.error);
-                      data.results.forEach((r: any) => setLog(prev => [...prev, `Processed: ${r.title} -> ${r.file}`]));
-                    } catch (err: any) {
-                      setLog(prev => [...prev, `Error: ${err.message}`]);
-                    }
-                    setIsIngesting(false);
-                  }
+                  await handleFilesUpload(Array.from(e.dataTransfer.files));
                 }}
               >
                 <i className="fa-solid fa-file-pdf" style={{ fontSize: '3rem', color: 'var(--accent)', marginBottom: '16px', opacity: 0.8 }}></i>
@@ -107,24 +127,7 @@ export default function IngestView() {
                     style={{ display: 'none' }} 
                     onChange={async (e) => {
                       if (e.target.files) {
-                        const files = Array.from(e.target.files);
-                        const formData = new FormData();
-                        files.forEach(f => formData.append('files', f));
-                        
-                        setIsIngesting(true);
-                        setLog(prev => [...prev, `Uploading ${files.length} file(s)...`]);
-                        try {
-                          const res = await fetch('/api/ingest/upload', {
-                            method: 'POST',
-                            body: formData
-                          });
-                          const data = await res.json();
-                          if (data.error) throw new Error(data.error);
-                          data.results.forEach((r: any) => setLog(prev => [...prev, `Processed: ${r.title} -> ${r.file}`]));
-                        } catch (err: any) {
-                          setLog(prev => [...prev, `Error: ${err.message}`]);
-                        }
-                        setIsIngesting(false);
+                        await handleFilesUpload(Array.from(e.target.files));
                       }
                     }}
                   />
