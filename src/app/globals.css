@@ -416,6 +416,44 @@ a:hover {
   font-size: 0.9rem;
 }
 
+.source-link-wrapper {
+  position: relative;
+  width: fit-content;
+}
+
+.source-link-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  max-width: 260px;
+  width: max-content;
+  padding: 8px 12px;
+  background: rgba(15, 17, 23, 0.97);
+  backdrop-filter: blur(8px);
+  color: var(--text-bright);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  word-break: break-all;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.source-link-wrapper:hover .source-link-tooltip,
+.source-link-wrapper:focus-within .source-link-tooltip,
+.source-link-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 /* Buttons */
 .action-btn {
   width: 100%;

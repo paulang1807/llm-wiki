@@ -92,4 +92,44 @@ describe('Header Search & PageView Wikilink Components', () => {
     fireEvent.click(link);
     expect(onSelectFile).toHaveBeenCalledWith('Software Engineering/react.md');
   });
+
+  it('PageView displays the actual source URL on mouseover of Source Link', async () => {
+    const testSourceUrl = 'https://git-scm.com/docs/git-revert';
+    vi.mocked(global.fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        content: 'Git revert documentation.',
+        frontmatter: {
+          title: 'Rewriting History',
+          category: 'Software Engineering',
+          source: testSourceUrl,
+          confidence: 0.9
+        },
+        index: {}
+      })
+    } as Response);
+
+    render(
+      <PageView
+        filePath="Software Engineering/Git/Rewriting History.md"
+        onSelectFile={() => {}}
+        onRefresh={() => {}}
+        onClose={() => {}}
+      />
+    );
+
+    const sourceLink = await waitFor(() => screen.getByText('Source Link'));
+    expect(sourceLink.getAttribute('href')).toBe(testSourceUrl);
+    expect(sourceLink.getAttribute('title')).toBe(testSourceUrl);
+
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toBe(testSourceUrl);
+    expect(tooltip.className).not.toContain('visible');
+
+    fireEvent.mouseOver(sourceLink);
+    expect(tooltip.className).toContain('visible');
+
+    fireEvent.mouseLeave(sourceLink);
+    expect(tooltip.className).not.toContain('visible');
+  });
 });

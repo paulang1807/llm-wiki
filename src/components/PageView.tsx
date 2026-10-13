@@ -19,6 +19,7 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
   const [editContent, setEditContent] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editDate, setEditDate] = useState('');
+  const [isSourceHovered, setIsSourceHovered] = useState(false);
 
   const isLoading = loadedPath !== filePath;
 
@@ -211,14 +212,39 @@ export default function PageView({ filePath, onRefresh, onClose, onSelectFile }:
               })}
             </div>
           )}
-          {frontmatter.source && (
-            <div className="info-item" style={{ marginTop: '16px', wordBreak: 'break-all' }}>
-              <i className="fa-solid fa-link" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>
-              <a href={frontmatter.source} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', fontSize: '0.8rem', textDecoration: 'underline' }}>
-                Source Link
-              </a>
-            </div>
-          )}
+          {(() => {
+            const sourceUrl = typeof frontmatter.source === 'string' ? frontmatter.source.trim() : '';
+            const hasValidSource = sourceUrl.length > 0 && !['n/a', 'none', 'null', 'undefined'].includes(sourceUrl.toLowerCase());
+            if (!hasValidSource) return null;
+            return (
+              <div
+                className="info-item source-link-wrapper"
+                style={{ marginTop: '16px', wordBreak: 'break-all' }}
+                onMouseEnter={() => setIsSourceHovered(true)}
+                onMouseOver={() => setIsSourceHovered(true)}
+                onMouseLeave={() => setIsSourceHovered(false)}
+                onFocus={() => setIsSourceHovered(true)}
+                onBlur={() => setIsSourceHovered(false)}
+              >
+                <i className="fa-solid fa-link" style={{ color: 'var(--accent)', opacity: 0.8 }}></i>
+                <a
+                  href={sourceUrl}
+                  title={sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: 'var(--accent)', fontSize: '0.8rem', textDecoration: 'underline' }}
+                >
+                  Source Link
+                </a>
+                <span
+                  role="tooltip"
+                  className={`source-link-tooltip${isSourceHovered ? ' visible' : ''}`}
+                >
+                  {sourceUrl}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="info-section animate-up" style={{ animationDelay: '0.2s' }}>
