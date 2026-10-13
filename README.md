@@ -1,54 +1,75 @@
 # LLM Wiki: Self-Curating Knowledge Base
 
-LLM Wiki is a premium, AI-driven knowledge management system designed to turn raw information into a structured, semantic knowledge graph. Powered by Google's Gemini Pro, it automatically synthesizes notes, URLs, and files into a cohesive wiki with intelligent linking and automated categorization.
+LLM Wiki is a premium, AI-driven knowledge management system and macOS desktop application designed to turn raw information into a structured, semantic knowledge graph. Powered by **Google Gemini** (with automatic fallback to local **Ollama** models), it synthesizes notes, URLs, and documents into a cohesive Markdown wiki with intelligent `[[Wikilink]]` connections, hierarchical domain categorization, and self-healing metadata maintenance.
 
 ![LLM Wiki Home Page](./media/home.png)
 
-## ✨ Features
+---
+
+## ✨ Key Features
 
 ### 🧠 AI-Powered Ingestion Hub
-Streamline your knowledge gathering with multi-method ingestion. Whether it's a quick note, a long article, or a collection of research papers, the AI engine processes and integrates it seamlessly.
-- **Quick Note**: Paste text directly for immediate synthesis.
-- **Link Ingestion**: Provide a URL, and the AI extracts the core knowledge while preserving the source citation.
-- **Batch Upload**: Drag and drop multiple files (Markdown, Text, PDF) for bulk processing.
+Streamline your knowledge gathering with multi-method ingestion. Whether it's a quick thought, a technical article, or a batch of research documents, the AI engine extracts, formats, and integrates it seamlessly:
+- **Quick Note**: Paste raw text or notes directly for immediate synthesis into structured Markdown.
+- **Link Ingestion**: Provide a public URL (`http`/`https`), and the AI extracts the core concepts while preserving source provenance.
+- **Batch File Upload**: Drag and drop multiple files (`.md`, `.txt`, `.pdf`) for bulk processing with real-time console logs.
 
 ![Ingestion Hub](./media/ingestion.png)
 
-### 📊 Semantic Graph & Hierarchy
-Visualize your knowledge. LLM Wiki builds a dynamic graph of concepts and automatically organizes them into a deep, logical domain hierarchy.
-- **Dynamic Sidebar**: Reflects the real-time structure of your knowledge base.
-- **Knowledge Graph**: Explore relationships between concepts visually.
-- **Home Analytics**: Dashboard tiles showing subdomain and page counts for each primary domain.
+### 📊 Semantic Knowledge Graph & Domain Hierarchy
+Visualize and navigate your knowledge base effortlessly:
+- **Interactive Force-Directed Graph**: Explore relationships between wiki pages and meaningful `#tag` nodes visually (`react-force-graph-2d`), color-coded by top-level domain. Click any page node to jump directly to that article.
+- **Dynamic Collapsible Sidebar**: Reflects the real-time folder hierarchy of your knowledge base with collapsible categories and quick actions.
+- **Home Analytics Dashboard**: Overview tiles showing total pages, domain breakdowns, and quick navigation.
 
 ![Knowledge Graph](./media/graph.png)
 
-### 🔗 Intelligent Linking & Meta-data
-Every page is part of a larger conversation. The AI automatically generates:
-- **Wikilinks**: Semantic connections to existing knowledge using `[[Title]]` syntax.
-- **Provenance**: Automatic source tracking for all ingested links.
-- **Rich Frontmatter**: Titles, categories, tags, last-updated dates, and AI confidence scores.
+### 🔗 Intelligent Linking, Provenance & Page Management
+Every page is richly structured and easy to curate:
+- **Semantic Wikilinks**: Automatic and manual connections to existing knowledge using `[[Title]]` syntax.
+- **Source Provenance & Hover Preview**: Automatic source URL tracking in page metadata, complete with an opaque hover tooltip that reveals the full source URL on mouseover of **Source Link**.
+- **Rich Frontmatter & Properties**: Validated titles, hierarchical categories, sanitized multi-character `#tags`, last-updated dates, and normalized AI confidence scores (`0–100%`).
+- **Inline Editing & Archiving**: Edit Markdown content, titles, and dates directly in-app or archive obsolete pages safely to the `archive/` directory.
 
 ![Page View](./media/page_view.png)
 
-### 💎 Premium Design Language
-Built for productivity and aesthetics:
-- **Glassmorphic UI**: A modern, translucent interface that feels lightweight and responsive.
-- **Micro-animations**: Smooth transitions and hover effects for a premium feel.
-- **Real-time Console**: Watch the AI knowledge engine work in real-time.
+### 🔍 Global Search, AI Chat & Self-Healing Health Engine
+- **Instant Header Search**: Search across page titles, categories, tags, and content snippets from anywhere in the app with keyboard-friendly dropdown navigation.
+- **AI Knowledge Assistant (Chat Drawer)**: Ask natural-language questions against your entire wiki and receive synthesized answers with source attribution.
+- **Knowledge Base Health & Auto-Repair**: Scan your wiki for broken `[[Wikilinks]]`, orphaned pages, single-character/malformed tags, or missing frontmatter fields, and repair them with one click.
 
-## 🚀 Getting Started
+---
 
-### 🖥️ Desktop Application (macOS)
+## 🛠️ Tech Stack
 
-LLM Wiki is packaged as a standalone macOS application. There is no need to manually start a Next.js server.
+- **Framework**: Next.js 16 (App Router, Turbopack), React 19, TypeScript 5
+- **Desktop Runtime**: Electron 42 & `electron-builder` (macOS `.app` & `.dmg`)
+- **AI Engine**: Google Generative AI SDK (`@google/generative-ai` / Gemini) + Local Ollama HTTP API fallback
+- **Knowledge Storage & Parsing**: Local Markdown filesystem, `gray-matter` (YAML frontmatter), `react-markdown`, `remark-gfm`
+- **Visualization & Icons**: `react-force-graph-2d`, `lucide-react`, Font Awesome
+- **Testing & Linting**: Vitest 4, React Testing Library, `jsdom`, ESLint 9
 
-1. **Clone the repository** (if building from source):
+---
+
+## 🚀 Prerequisites & Local Setup
+
+### Prerequisites
+- **Node.js** `v20+` and **npm**
+- **AI Provider**:
+  - A **Google Gemini API Key** (`GOOGLE_API_KEY`), **or**
+  - A local **Ollama** server running at `http://localhost:11434` (used automatically when `GOOGLE_API_KEY` is omitted)
+
+### 🖥️ Option 1: Desktop Application (macOS)
+
+LLM Wiki can be built and run as a standalone macOS application that manages its own background server automatically.
+
+1. **Clone the repository**:
    ```bash
    git clone https://github.com/paulang1807/llm-wiki.git
    cd llm-wiki
    ```
 
-2. **Install dependencies**:
+2. **Install local dependencies**:
    ```bash
    npm install
    ```
@@ -57,35 +78,73 @@ LLM Wiki is packaged as a standalone macOS application. There is no need to manu
    ```bash
    npm run package:mac
    ```
-   The packaged `.app` will be available in the `release/mac` folder. You can drag `LLM Wiki.app` to your `/Applications` folder.
+   *(To build only the unpacked `.app` bundle without creating a disk image, run `npm run build && node scripts/build-mac.js && npx electron-builder --mac --dir`.)*
 
-### 🗄️ Data Storage & Configuration
+   The packaged application will be output to `release/mac-arm64/LLM Wiki.app` (Apple Silicon) or `release/mac/LLM Wiki.app` (Intel). You can launch it directly or drag `LLM Wiki.app` into `/Applications`.
 
-Because macOS applications are sandboxed, all of your wiki data and configuration is automatically stored in your user Documents folder:
-- **Wiki Notes:** `~/Documents/LLM-Wiki/`
-- **Environment Variables:** `~/Documents/LLM-Wiki/.env`
+#### 🗄️ Desktop Data Storage & Configuration
+When running as a packaged macOS app, all wiki data and configuration are stored in your user Documents directory:
+- **Wiki Notes**: `~/Documents/LLM-Wiki/wiki/`
+- **Archived Notes**: `~/Documents/LLM-Wiki/archive/`
+- **Environment Configuration**: `~/Documents/LLM-Wiki/.env`
 
-If the `.env` file does not exist when the app launches, it will automatically create a template for you. You must add your `GOOGLE_API_KEY` to this file.
+On first launch, if `~/Documents/LLM-Wiki/.env` does not exist, the app automatically generates a template from [`.env.sample`](./.env.sample). Add your `GOOGLE_API_KEY` (or Ollama settings) to this file.
 
-### 👨‍💻 Local Development
+---
 
-If you prefer to run the web application directly from your terminal (without packaging it as a macOS application):
+### 👨‍💻 Option 2: Local Web Development
 
-1. **Setup Environment**: Copy the provided sample configuration.
+To run the web application directly from your terminal during development:
+
+1. **Configure Environment Variables**:
+   Copy the sample environment file [`.env.sample`](./.env.sample) to `.env`:
    ```bash
    cp .env.sample .env
    ```
-   *Make sure to add your `GOOGLE_API_KEY` to the newly created `.env` file.*
+   Edit `.env` and set your `GOOGLE_API_KEY` (or configure `OLLAMA_URL` and `OLLAMA_MODEL` for local inference).
 
 2. **Start the Development Server**:
    ```bash
    npm run dev
    ```
-   Open [http://localhost:3000](http://localhost:3000) to start building.
+   The launcher script ([`./scripts/start-server.js`](./scripts/start-server.js)) checks port `3000` first and automatically binds to the next available port (`3001`, `3002`, etc.) if `3000` is in use, logging the active URL clearly in the terminal.
 
-**Blank Slate Architecture:** By default, local development uses the `wiki/`, `raw/`, `archive/`, and `notes/` folders inside your repository workspace. These folders are tracked in git using empty `.gitkeep` files. This ensures that any new user who clones the repository will start with a perfectly clean, blank slate knowledge base. 
+3. **Blank-Slate Onboarding**:
+   By default, local development stores pages in the workspace's `wiki/`, `raw/`, `archive/`, and `notes/` directories, which are tracked in git via empty `.gitkeep` files so every new clone starts with a clean slate.
+   - *Optional*: To point local development at your macOS Desktop App data directory, set `DATA_DIR=~/Documents/LLM-Wiki` in your `.env` file.
 
-*Optional:* If you want your local development server to point to your macOS Desktop App's storage folder, you can append `DATA_DIR=~/Documents/LLM-Wiki` to your `.env` file.
+---
+
+## 📖 Usage Guide
+
+1. **Ingest Knowledge**: Click **Ingest** in the top header or sidebar. Choose **Quick Note**, **From URL**, or **Upload Files**, then click **Synthesize into Wiki** and monitor progress in the live Engine Console.
+2. **Browse & Read Pages**: Expand domain folders in the left sidebar and click any article. In the right-hand **Metadata** panel:
+   - Hover over **Source Link** to inspect the full original URL in an opaque tooltip, or click it to open the source in your browser.
+   - Review sanitized `#tags` and the normalized AI **Confidence** bar.
+   - Use **Edit Content** to modify the page inline or **Archive Page** to move it to `archive/`.
+3. **Explore the Knowledge Graph**: Click the **Graph View** icon in the top header to visualize connections across domains and tags. Click any page node to open that note.
+4. **Search & Ask AI**:
+   - Type in the top **Search knowledge base...** bar to filter and jump to matching notes.
+   - Click the **AI Assistant** button in the top-right header to open the Chat Drawer and ask questions synthesized from your notes.
+5. **Run Health Checks**: Open the **Health** view from the header to audit broken links, orphaned pages, and metadata consistency, and click **Auto-Repair All Issues** to self-heal your wiki.
+
+---
+
+## 🧪 Testing & Quality Checks
+
+Run the unit test suite (Vitest + React Testing Library) and linter locally:
+
+```bash
+# Run all unit tests
+npm test
+
+# Run ESLint and TypeScript type checks
+npm run lint
+npx tsc --noEmit
+```
+
+---
+
 ## 📺 Demonstration
 
 Watch the AI Knowledge Engine synthesize a quick note into a structured wiki page:
@@ -94,4 +153,4 @@ Watch the AI Knowledge Engine synthesize a quick note into a structured wiki pag
 
 ---
 
-Built with ❤️ using Next.js and Gemini Pro.
+Built with ❤️ using Next.js, Electron, and Google Gemini.
